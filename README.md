@@ -1,6 +1,8 @@
 # nfc-games
 
-Ny NFC-stack til ACR122U på Bazzite. Første skridt: LED og beep i C++ over USB CCID (ingen `pcscd`, ingen `libnfc`).
+Ny NFC-stack til ACR122U på Bazzite. C++ over USB CCID (ingen `pcscd`, ingen `libnfc`).
+
+Brugervejledning: [HELP.md](HELP.md) — også `./build/nfc help`.
 
 ## Byg
 
@@ -36,6 +38,7 @@ ACR122U har en to-farvet LED: rød, grøn og gul (begge tændt).
 ./build/nfc led green
 ./build/nfc beep 300
 ./build/nfc firmware
+./build/nfc help
 ```
 
 `nfc games` finder Steam selv (`~/.steam/steam`, libraryfolders.vdf og `shortcuts.vdf`). Ingen fast spilleliste.

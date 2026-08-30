@@ -4,9 +4,13 @@
 
 #include <chrono>
 #include <cstdlib>
+#include <filesystem>
+#include <fstream>
 #include <iostream>
 #include <string>
 #include <thread>
+#include <unistd.h>
+#include <vector>
 
 using namespace std::chrono_literals;
 
@@ -24,7 +28,38 @@ void usage() {
       << "  nfc farver               rød, grøn, gul + beep\n"
       << "  nfc led green|red|yellow|off\n"
       << "  nfc beep [ms]\n"
-      << "  nfc firmware\n";
+      << "  nfc firmware\n"
+      << "  nfc help                 vis HELP.md\n";
+}
+
+std::filesystem::path help_file() {
+  std::vector<std::filesystem::path> cands;
+  cands.push_back(std::filesystem::current_path() / "HELP.md");
+  char buf[4096];
+  const ssize_t n = ::readlink("/proc/self/exe", buf, sizeof(buf) - 1);
+  if (n > 0) {
+    buf[n] = 0;
+    const auto exe = std::filesystem::path(buf);
+    cands.push_back(exe.parent_path() / "HELP.md");
+    cands.push_back(exe.parent_path().parent_path() / "HELP.md");
+  }
+  for (const auto& p : cands) {
+    std::error_code ec;
+    if (std::filesystem::is_regular_file(p, ec)) return p;
+  }
+  return {};
+}
+
+int cmd_help() {
+  const auto path = help_file();
+  if (path.empty()) {
+    usage();
+    std::cerr << "help-fil: HELP.md (ikke fundet)\n";
+    return 1;
+  }
+  std::ifstream in(path);
+  std::cout << in.rdbuf();
+  return 0;
 }
 
 std::string join_args(int argc, char** argv, int from) {
@@ -183,9 +218,8 @@ int main(int argc, char** argv) {
       return 2;
     }
     const std::string cmd = argv[1];
-    if (cmd == "-h" || cmd == "--help" || cmd == "help") {
-      usage();
-      return 0;
+    if (cmd == "-h" || cmd == "--help" || cmd == "help" || cmd == "hjælp") {
+      return cmd_help();
     }
     if (cmd == "list" || cmd == "ls") return cmd_list();
     if (cmd == "games" || cmd == "spil" || cmd == "steam") return cmd_games();
