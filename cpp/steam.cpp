@@ -434,6 +434,32 @@ std::vector<RunningGame> SteamLibrary::running() {
     out.push_back({appid, pid});
   }
   ::closedir(dir);
+
+  auto lib = SteamLibrary::scan();
+  for (const auto& g : lib.games()) {
+    if (g.exe.empty()) continue;
+    const std::string needle = unquote(g.exe);
+    if (needle.size() < 8) continue;
+    bool already = false;
+    for (const auto& r : out) {
+      if (r.appid == g.appid) already = true;
+    }
+    if (already) continue;
+    DIR* proc = ::opendir("/proc");
+    if (!proc) continue;
+    while (dirent* ent = ::readdir(proc)) {
+      if (ent->d_name[0] < '1' || ent->d_name[0] > '9') continue;
+      std::ifstream in("/proc/" + std::string(ent->d_name) + "/cmdline", std::ios::binary);
+      if (!in) continue;
+      std::string cmd((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+      if (cmd.find("__grok_user_cmd") != std::string::npos) continue;
+      if (cmd.find(needle) != std::string::npos) {
+        out.push_back({g.appid, std::atoi(ent->d_name)});
+        break;
+      }
+    }
+    ::closedir(proc);
+  }
   return out;
 }
 
@@ -462,6 +488,26 @@ int SteamLibrary::stop(std::uint32_t appid) {
     for (int pid : leftover_pids(id)) {
       if (::kill(pid, SIGKILL) == 0) ++n;
     }
+  }
+
+  auto lib = SteamLibrary::scan();
+  for (const auto& g : lib.games()) {
+    if (appid != 0 && g.appid != appid) continue;
+    const std::string needle = unquote(g.exe);
+    if (needle.size() < 8) continue;
+    DIR* proc = ::opendir("/proc");
+    if (!proc) continue;
+    while (dirent* ent = ::readdir(proc)) {
+      if (ent->d_name[0] < '1' || ent->d_name[0] > '9') continue;
+      const int pid = std::atoi(ent->d_name);
+      std::ifstream in("/proc/" + std::string(ent->d_name) + "/cmdline", std::ios::binary);
+      if (!in) continue;
+      std::string cmd((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+      if (cmd.find("__grok_user_cmd") != std::string::npos) continue;
+      if (cmd.find(needle) == std::string::npos) continue;
+      if (::kill(pid, SIGTERM) == 0) ++n;
+    }
+    ::closedir(proc);
   }
   return n;
 }
