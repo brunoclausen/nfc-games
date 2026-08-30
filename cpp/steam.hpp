@@ -13,6 +13,11 @@ struct SteamGame {
   std::string kind;  // "steam" or "shortcut"
 };
 
+struct RunningGame {
+  std::uint32_t appid = 0;
+  int pid = 0;
+};
+
 class SteamLibrary {
  public:
   // Discovers Steam roots, extra libraries, appmanifests and shortcuts.vdf.
@@ -22,6 +27,8 @@ class SteamLibrary {
   std::optional<SteamGame> find(std::string_view name_or_appid) const;
   std::vector<SteamGame> matches(std::string_view name_or_appid) const;
   static void launch(const SteamGame& game);
+  static std::vector<RunningGame> running();
+  static int stop(std::uint32_t appid = 0);
 
  private:
   std::vector<SteamGame> games_;

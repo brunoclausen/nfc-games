@@ -16,8 +16,10 @@ cd ~/nfc-games
 | Kommando | Hvad den gør |
 | --- | --- |
 | `nfc games` | Auto-scan alle Steam-spil og non-Steam shortcuts |
-| `nfc start "BloodRayne 2"` | Start spil via Steam |
+| `nfc start "BloodRayne 2"` | Start spil via Steam (kun ét ad gangen) |
 | `nfc start` | Læs tag og start det bundne spil |
+| `nfc lock` | Vis hvilket spil der kører/er låst |
+| `nfc stop` | Stop det kørende spil |
 | `nfc add "Silent Hill 4"` | Find spillet, vent på tag, bind tag → spil |
 | `nfc add 3640596865` | Samme, men med appid (når flere har samme navn) |
 | `nfc read` | Læs tag, vis UID og bundet spil |

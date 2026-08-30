@@ -6,12 +6,17 @@
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
+#include <iterator>
 #include <optional>
+#include <chrono>
+#include <csignal>
+#include <dirent.h>
 #include <sstream>
 #include <stdexcept>
 #include <string>
 #include <string_view>
 #include <sys/types.h>
+#include <thread>
 #include <unistd.h>
 #include <unordered_set>
 #include <vector>
@@ -301,4 +306,58 @@ void SteamLibrary::launch(const SteamGame& game) {
     ::execlp("steam", "steam", uri.c_str(), static_cast<char*>(nullptr));
     ::_exit(127);
   }
+}
+
+std::vector<RunningGame> SteamLibrary::running() {
+  std::vector<RunningGame> out;
+  DIR* dir = ::opendir("/proc");
+  if (!dir) return out;
+  while (dirent* ent = ::readdir(dir)) {
+    if (ent->d_name[0] < '1' || ent->d_name[0] > '9') continue;
+    const int pid = std::atoi(ent->d_name);
+    std::ifstream in("/proc/" + std::string(ent->d_name) + "/cmdline", std::ios::binary);
+    if (!in) continue;
+    std::string cmd((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+    for (char& c : cmd) {
+      if (c == '\0') c = ' ';
+    }
+    if (cmd.find("SteamLaunch") == std::string::npos) continue;
+    auto pos = cmd.find("AppId=");
+    if (pos == std::string::npos) continue;
+    pos += 6;
+    std::uint32_t appid = 0;
+    try {
+      appid = static_cast<std::uint32_t>(std::stoul(cmd.substr(pos)));
+    } catch (...) {
+      continue;
+    }
+    if (appid == 0) continue;
+    out.push_back({appid, pid});
+  }
+  ::closedir(dir);
+  return out;
+}
+
+int SteamLibrary::stop(std::uint32_t appid) {
+  auto list = running();
+  int n = 0;
+  for (const auto& g : list) {
+    if (appid != 0 && g.appid != appid) continue;
+    if (::kill(g.pid, SIGTERM) == 0) ++n;
+  }
+  using clock = std::chrono::steady_clock;
+  const auto deadline = clock::now() + std::chrono::seconds(4);
+  while (clock::now() < deadline) {
+    bool left = false;
+    for (const auto& g : running()) {
+      if (appid == 0 || g.appid == appid) left = true;
+    }
+    if (!left) break;
+    std::this_thread::sleep_for(std::chrono::milliseconds{200});
+  }
+  for (const auto& g : running()) {
+    if (appid != 0 && g.appid != appid) continue;
+    ::kill(g.pid, SIGKILL);
+  }
+  return n;
 }

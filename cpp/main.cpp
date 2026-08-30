@@ -27,8 +27,10 @@ void print_help(std::ostream& out) {
       "\n"
       "Tags og spil:\n"
       "  nfc games                   auto-scan Steam-spil og shortcuts\n"
-      "  nfc start <spil|appid>      start spil via Steam\n"
+      "  nfc start <spil|appid>      start spil via Steam (låst mens det kører)\n"
       "  nfc start                   læs tag og start bundet spil\n"
+      "  nfc stop [spil|appid]       stop kørende spil\n"
+      "  nfc lock                    vis hvilket spil der er låst/kører\n"
       "  nfc add <spil|appid>        find spil, læs tag, bind dem\n"
       "  nfc read                    læs tag (UID + bundet spil)\n"
       "  nfc list                    vis gemte tags (tags.conf)\n"
@@ -53,6 +55,8 @@ void print_help(std::ostream& out) {
       "  nfc games\n"
       "  nfc add \"BloodRayne 2\"\n"
       "  nfc start \"BloodRayne 2\"\n"
+      "  nfc lock\n"
+      "  nfc stop\n"
       "  nfc add 3640596865\n"
       "  nfc read\n";
 }
@@ -186,8 +190,74 @@ int cmd_start(const std::string& query) {
     int rc = resolve_game(query, game);
     if (rc != 0) return rc;
   }
+  auto run = SteamLibrary::running();
+  for (const auto& r : run) {
+    if (r.appid == game.appid) {
+      std::cout << "kører allerede " << game.name << "  " << game.appid << "\n";
+      return 0;
+    }
+  }
+  if (!run.empty()) {
+    std::cerr << "nfc: spil er låst (appid " << run.front().appid
+              << " kører). nfc stop først\n";
+    return 3;
+  }
   std::cout << "starter " << game.name << "  " << game.appid << "  " << game.kind << "\n";
   SteamLibrary::launch(game);
+  return 0;
+}
+
+std::string name_for_appid(std::uint32_t appid) {
+  auto lib = SteamLibrary::scan();
+  for (const auto& g : lib.games()) {
+    if (g.appid == appid) return g.name;
+  }
+  return std::to_string(appid);
+}
+
+int cmd_lock() {
+  auto run = SteamLibrary::running();
+  if (run.empty()) {
+    std::cout << "intet spil kører (ikke låst)\n";
+    return 0;
+  }
+  for (const auto& r : run) {
+    std::cout << "låst  " << r.appid << "  " << name_for_appid(r.appid) << "  pid "
+              << r.pid << "\n";
+  }
+  return 0;
+}
+
+int cmd_stop(const std::string& query) {
+  std::uint32_t appid = 0;
+  std::string name;
+  if (!query.empty()) {
+    SteamGame game;
+    int rc = resolve_game(query, game);
+    if (rc != 0) return rc;
+    appid = game.appid;
+    name = game.name;
+  } else {
+    auto run = SteamLibrary::running();
+    if (run.empty()) {
+      std::cout << "intet spil kører\n";
+      return 0;
+    }
+    appid = run.front().appid;
+    name = name_for_appid(appid);
+  }
+  std::cout << "stopper " << name << "  " << appid << "\n";
+  int n = SteamLibrary::stop(appid);
+  if (n == 0 && SteamLibrary::running().empty()) {
+    std::cout << "intet spil kører\n";
+    return 0;
+  }
+  auto left = SteamLibrary::running();
+  if (!left.empty()) {
+    std::cerr << "nfc: spillet kører stadig\n";
+    return 1;
+  }
+  std::cout << "stoppet\n";
   return 0;
 }
 
@@ -293,6 +363,12 @@ int main(int argc, char** argv) {
     if (cmd == "games" || cmd == "spil" || cmd == "steam") return cmd_games();
     if (cmd == "start" || cmd == "play" || cmd == "launch") {
       return cmd_start(join_args(argc, argv, 2));
+    }
+    if (cmd == "stop" || cmd == "luk") {
+      return cmd_stop(join_args(argc, argv, 2));
+    }
+    if (cmd == "lock" || cmd == "laas" || cmd == "lås") {
+      return cmd_lock();
     }
     if (cmd == "read" || cmd == "læs" || cmd == "laes") return cmd_read();
     if (cmd == "add" || cmd == "tilfoj" || cmd == "tilføj") {
