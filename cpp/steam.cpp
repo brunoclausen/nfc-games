@@ -227,6 +227,42 @@ std::vector<SteamGame> parse_shortcuts(const fs::path& path) {
   return out;
 }
 
+std::string installdir_of(std::uint32_t appid) {
+  const auto roots = steam_roots();
+  for (const auto& library : library_paths(roots)) {
+    auto acf = library / "steamapps" / ("appmanifest_" + std::to_string(appid) + ".acf");
+    auto text = read_file(acf);
+    if (!text) continue;
+    if (auto dir = vdf_string(*text, "installdir")) return *dir;
+  }
+  return {};
+}
+
+std::vector<int> leftover_pids(std::uint32_t appid) {
+  std::vector<int> pids;
+  const std::string needle = "AppId=" + std::to_string(appid);
+  const std::string dir = installdir_of(appid);
+  DIR* proc = ::opendir("/proc");
+  if (!proc) return pids;
+  while (dirent* ent = ::readdir(proc)) {
+    if (ent->d_name[0] < '1' || ent->d_name[0] > '9') continue;
+    const int pid = std::atoi(ent->d_name);
+    std::ifstream in("/proc/" + std::string(ent->d_name) + "/cmdline", std::ios::binary);
+    if (!in) continue;
+    std::string cmd((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+    for (char& c : cmd) {
+      if (c == '\0') c = ' ';
+    }
+    if (cmd.find("steamwebhelper") != std::string::npos) continue;
+    if (cmd.find("__grok_user_cmd") != std::string::npos) continue;
+    const bool launch = cmd.find("SteamLaunch") != std::string::npos && cmd.find(needle) != std::string::npos;
+    const bool inst = !dir.empty() && dir.size() >= 4 && cmd.find(dir) != std::string::npos;
+    if (launch || inst) pids.push_back(pid);
+  }
+  ::closedir(proc);
+  return pids;
+}
+
 }  // namespace
 
 SteamLibrary SteamLibrary::scan() {
@@ -341,23 +377,28 @@ std::vector<RunningGame> SteamLibrary::running() {
 int SteamLibrary::stop(std::uint32_t appid) {
   auto list = running();
   int n = 0;
+  std::vector<std::uint32_t> ids;
   for (const auto& g : list) {
     if (appid != 0 && g.appid != appid) continue;
+    ids.push_back(g.appid);
     if (::kill(g.pid, SIGTERM) == 0) ++n;
   }
+  if (ids.empty() && appid != 0) ids.push_back(appid);
+
   using clock = std::chrono::steady_clock;
-  const auto deadline = clock::now() + std::chrono::seconds(4);
+  const auto deadline = clock::now() + std::chrono::seconds(3);
   while (clock::now() < deadline) {
     bool left = false;
-    for (const auto& g : running()) {
-      if (appid == 0 || g.appid == appid) left = true;
+    for (auto id : ids) {
+      if (!leftover_pids(id).empty()) left = true;
     }
     if (!left) break;
     std::this_thread::sleep_for(std::chrono::milliseconds{200});
   }
-  for (const auto& g : running()) {
-    if (appid != 0 && g.appid != appid) continue;
-    ::kill(g.pid, SIGKILL);
+  for (auto id : ids) {
+    for (int pid : leftover_pids(id)) {
+      if (::kill(pid, SIGKILL) == 0) ++n;
+    }
   }
   return n;
 }
