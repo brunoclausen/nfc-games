@@ -17,6 +17,7 @@ add_executable(nfc
   cpp/main.cpp
   cpp/acr122.cpp
   cpp/tags.cpp
+  cpp/steam.cpp
 )
 target_include_directories(nfc PRIVATE cpp ${LIBUSB_INCLUDE_DIRS})
 target_link_directories(nfc PRIVATE ${LIBUSB_LIBRARY_DIRS})

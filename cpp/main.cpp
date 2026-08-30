@@ -1,4 +1,5 @@
 #include "acr122.hpp"
+#include "steam.hpp"
 #include "tags.hpp"
 
 #include <chrono>
@@ -19,6 +20,7 @@ void usage() {
       << "  nfc remove <navn|uid>    fjern gemt tag\n"
       << "  nfc remove               læs tag og fjern det hvis det er gemt\n"
       << "  nfc list                 vis gemte tags\n"
+      << "  nfc games                auto-scan Steam-spil og shortcuts\n"
       << "  nfc farver               rød, grøn, gul + beep\n"
       << "  nfc led green|red|yellow|off\n"
       << "  nfc beep [ms]\n"
@@ -78,6 +80,19 @@ void print_tag(const std::string& uid, const TagStore& store) {
 std::vector<uint8_t> wait_for_tag(Acr122& reader) {
   std::cout << "læg et tag på læseren...\n" << std::flush;
   return reader.wait_uid(wait_timeout());
+}
+
+int cmd_games() {
+  auto lib = SteamLibrary::scan();
+  if (lib.games().empty()) {
+    std::cout << "ingen Steam-spil fundet\n";
+    return 0;
+  }
+  for (const auto& g : lib.games()) {
+    std::cout << g.appid << "  " << g.kind << "  " << g.name << "\n";
+  }
+  std::cout << lib.games().size() << " spil\n";
+  return 0;
 }
 
 int cmd_list() {
@@ -156,6 +171,7 @@ int main(int argc, char** argv) {
       return 0;
     }
     if (cmd == "list" || cmd == "ls") return cmd_list();
+    if (cmd == "games" || cmd == "spil" || cmd == "steam") return cmd_games();
     if (cmd == "read" || cmd == "læs" || cmd == "laes") return cmd_read();
     if (cmd == "add" || cmd == "tilfoj" || cmd == "tilføj") {
       const std::string name = join_args(argc, argv, 2);

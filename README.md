@@ -26,6 +26,7 @@ Træk USB-stikket ud og sæt det i igen efter første install.
 ACR122U har en to-farvet LED: rød, grøn og gul (begge tændt).
 
 ```bash
+./build/nfc games                # auto-scan Steam-bibliotek + non-Steam shortcuts
 ./build/nfc read                 # vent på tag, vis UID
 ./build/nfc add bloodrayne       # vent på tag, gem navn+UID i tags.conf
 ./build/nfc list
@@ -36,5 +37,7 @@ ACR122U har en to-farvet LED: rød, grøn og gul (begge tændt).
 ./build/nfc beep 300
 ./build/nfc firmware
 ```
+
+`nfc games` finder Steam selv (`~/.steam/steam`, libraryfolders.vdf og `shortcuts.vdf`). Ingen fast spilleliste.
 
 Gemte tags ligger i `tags.conf` i den mappe, du kører fra.
