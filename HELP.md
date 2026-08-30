@@ -57,12 +57,22 @@ Ingen fast spillefil. `nfc games` scanner selv hver gang:
 
 - Steam-rod (`~/.steam/steam`, `~/.local/share/Steam`)
 - `libraryfolders.vdf` + `appmanifest_*.acf` (installerede Steam-spil)
-- `shortcuts.vdf` (non-Steam: emulation, Ryujinx, ES-DE, …)
+- `shortcuts.vdf` — emu-spil fra **Steam ROM Manager**
+  (https://steamgriddb.github.io/steam-rom-manager/)
+
+SRM skriver genveje ind i Steam (PCSX2, Ryujinx, ES-DE, …). NFC læser de samme
+genveje og starter dem kun via Steam, f.eks.:
+
+```
+steam steam://rungameid/15636244473128681472
+```
+
+(det 64-bit id SRM/Steam putter i `.desktop`-filen). NFC kører ikke emulatoren
+direkte. Parse nye roms i SRM, genstart Steam, så ligger de i `nfc games`.
 
 Proton og Steam Runtime vises ikke.
 
-Alle spil **og** emu-genveje startes kun via Steam (`steam steam://rungameid/...`),
-som skrivebordsgenvejen. NFC kører ikke PCSX2/Ryujinx direkte.
+Alle spil **og** emu-genveje startes kun via Steam (`steam steam://rungameid/...`).
 
 Har to spil samme navn (fx Batman), så brug **appid** med `nfc add`.
 
