@@ -4,3 +4,5 @@ compile_commands.json
 .clangd
 *.o
 nfc
+tags.conf
+tags.conf.tmp

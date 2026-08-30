@@ -1,4 +1,5 @@
 #include "acr122.hpp"
+#include "tags.hpp"
 
 #include <chrono>
 #include <cstdlib>
@@ -13,13 +14,32 @@ namespace {
 void usage() {
   std::cerr
       << "brug: nfc [kommando]\n"
-      << "  nfc              demo: grøn, beep, rød, beep, grøn\n"
-      << "  nfc firmware     vis firmware-streng\n"
-      << "  nfc led green    tænd grøn LED\n"
-      << "  nfc led red      tænd rød LED\n"
-      << "  nfc led yellow   tænd begge (gul)\n"
-      << "  nfc led off      sluk LED\n"
-      << "  nfc beep [ms]    bip (standard 200 ms)\n";
+      << "  nfc read                 læs tag (UID)\n"
+      << "  nfc add <navn>           læs tag og gem det\n"
+      << "  nfc remove <navn|uid>    fjern gemt tag\n"
+      << "  nfc remove               læs tag og fjern det hvis det er gemt\n"
+      << "  nfc list                 vis gemte tags\n"
+      << "  nfc farver               rød, grøn, gul + beep\n"
+      << "  nfc led green|red|yellow|off\n"
+      << "  nfc beep [ms]\n"
+      << "  nfc firmware\n";
+}
+
+std::string join_args(int argc, char** argv, int from) {
+  std::string s;
+  for (int i = from; i < argc; ++i) {
+    if (!s.empty()) s += ' ';
+    s += argv[i];
+  }
+  return s;
+}
+
+std::chrono::milliseconds wait_timeout() {
+  if (const char* env = std::getenv("NFC_TIMEOUT_MS")) {
+    int ms = std::atoi(env);
+    if (ms > 0) return std::chrono::milliseconds{ms};
+  }
+  return 0ms;
 }
 
 Acr122::Led parse_led(const std::string& name) {
@@ -30,37 +50,126 @@ Acr122::Led parse_led(const std::string& name) {
   throw Acr122Error("ukendt LED: " + name);
 }
 
+void show_color(Acr122& r, Acr122::Led led, const char* name) {
+  std::cout << "LED " << name << "\n";
+  r.set_led(led);
+  r.beep(150ms);
+  std::this_thread::sleep_for(900ms);
+}
+
 void demo(Acr122& r) {
   std::cout << "firmware: " << r.firmware() << "\n";
-  std::cout << "LED grøn\n";
-  r.set_led(Acr122::Led::Green);
-  std::this_thread::sleep_for(400ms);
-
-  std::cout << "beep\n";
-  r.beep(200ms);
-  std::this_thread::sleep_for(200ms);
-
-  std::cout << "LED rød + beep\n";
-  r.blink(Acr122::Led::Red, Acr122::Led::Red, 300ms, 100ms, 1, true);
-  std::this_thread::sleep_for(200ms);
-
-  std::cout << "blink gul + beep\n";
-  r.blink(Acr122::Led::Yellow, Acr122::Led::Green, 150ms, 150ms, 3, true);
-
+  show_color(r, Acr122::Led::Red, "rød");
+  show_color(r, Acr122::Led::Green, "grøn");
+  show_color(r, Acr122::Led::Yellow, "gul (rød+grøn)");
   std::cout << "LED grøn (klar)\n";
   r.set_led(Acr122::Led::Green);
+}
+
+void print_tag(const std::string& uid, const TagStore& store) {
+  std::cout << "uid  " << uid << "\n";
+  if (auto known = store.find_uid(uid)) {
+    std::cout << "navn " << known->name << "\n";
+  } else {
+    std::cout << "navn (ukendt)\n";
+  }
+}
+
+std::vector<uint8_t> wait_for_tag(Acr122& reader) {
+  std::cout << "læg et tag på læseren...\n" << std::flush;
+  return reader.wait_uid(wait_timeout());
+}
+
+int cmd_list() {
+  auto store = TagStore::load(TagStore::default_path());
+  if (store.all().empty()) {
+    std::cout << "ingen tags i " << store.path().string() << "\n";
+    return 0;
+  }
+  for (const auto& t : store.all()) {
+    std::cout << t.name << "  " << t.uid << "\n";
+  }
+  return 0;
+}
+
+int cmd_read() {
+  auto store = TagStore::load(TagStore::default_path());
+  auto reader = Acr122::open();
+  auto uid = wait_for_tag(reader);
+  print_tag(Acr122::uid_hex(uid), store);
+  reader.set_led(Acr122::Led::Green);
+  return 0;
+}
+
+int cmd_add(const std::string& name) {
+  auto store = TagStore::load(TagStore::default_path());
+  auto reader = Acr122::open();
+  auto uid = wait_for_tag(reader);
+  const std::string hex = Acr122::uid_hex(uid);
+  store.upsert(hex, name);
+  reader.set_led(Acr122::Led::Green);
+  std::cout << "gemt " << name << "  " << hex << "\n";
+  std::cout << "fil  " << store.path().string() << "\n";
+  return 0;
+}
+
+int cmd_remove(const std::string& key) {
+  auto store = TagStore::load(TagStore::default_path());
+  std::string target = key;
+  if (target.empty()) {
+    auto reader = Acr122::open();
+    auto uid = wait_for_tag(reader);
+    target = Acr122::uid_hex(uid);
+    auto known = store.find_uid(target);
+    if (!store.remove(target)) {
+      reader.set_led(Acr122::Led::Red);
+      std::cout << "uid  " << target << "\n";
+      std::cout << "ikke gemt\n";
+      return 1;
+    }
+    reader.blink(Acr122::Led::Red, Acr122::Led::Green, 150ms, 80ms, 2, true);
+    std::cout << "fjernet " << (known ? known->name : target) << "  " << target << "\n";
+    return 0;
+  }
+  auto known = store.find(target);
+  if (!store.remove(target)) {
+    std::cerr << "nfc: ikke fundet: " << target << "\n";
+    return 1;
+  }
+  std::cout << "fjernet " << (known ? known->name : target);
+  if (known) std::cout << "  " << known->uid;
+  std::cout << "\n";
+  return 0;
 }
 
 }  // namespace
 
 int main(int argc, char** argv) {
   try {
-    auto reader = Acr122::open();
     if (argc < 2) {
-      demo(reader);
-      return 0;
+      usage();
+      return 2;
     }
     const std::string cmd = argv[1];
+    if (cmd == "-h" || cmd == "--help" || cmd == "help") {
+      usage();
+      return 0;
+    }
+    if (cmd == "list" || cmd == "ls") return cmd_list();
+    if (cmd == "read" || cmd == "læs" || cmd == "laes") return cmd_read();
+    if (cmd == "add" || cmd == "tilfoj" || cmd == "tilføj") {
+      const std::string name = join_args(argc, argv, 2);
+      if (name.empty()) {
+        usage();
+        return 2;
+      }
+      return cmd_add(name);
+    }
+    if (cmd == "remove" || cmd == "rm" || cmd == "slet") {
+      return cmd_remove(join_args(argc, argv, 2));
+    }
+
+    auto reader = Acr122::open();
     if (cmd == "firmware") {
       std::cout << reader.firmware() << "\n";
     } else if (cmd == "led") {
@@ -74,17 +183,17 @@ int main(int argc, char** argv) {
       if (argc >= 3) ms = std::atoi(argv[2]);
       if (ms < 100) ms = 100;
       reader.beep(std::chrono::milliseconds{ms});
-    } else if (cmd == "demo") {
+    } else if (cmd == "demo" || cmd == "colors" || cmd == "farver") {
       demo(reader);
-    } else if (cmd == "-h" || cmd == "--help" || cmd == "help") {
-      usage();
-      return 0;
     } else {
       usage();
       return 2;
     }
     return 0;
   } catch (const Acr122Error& e) {
+    std::cerr << "nfc: " << e.what() << "\n";
+    return 1;
+  } catch (const std::exception& e) {
     std::cerr << "nfc: " << e.what() << "\n";
     return 1;
   }

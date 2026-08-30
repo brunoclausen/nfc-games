@@ -4,7 +4,11 @@
 
 #include <algorithm>
 #include <array>
+#include <chrono>
+#include <iomanip>
+#include <optional>
 #include <sstream>
+#include <thread>
 
 namespace {
 
@@ -108,6 +112,20 @@ Acr122 Acr122::open() {
   Acr122 reader(ctx, handle, ep_out, ep_in, max_packet);
   reader.icc_power_on();
   reader.disable_card_detect_buzzer();
+  try {
+    (void)reader.xfr({0xFF, 0x00, 0x51, 0xFF, 0x00}, 1000);
+  } catch (const Acr122Error&) {
+  }
+  try {
+    // PN532 SAMConfiguration: normal mode
+    (void)reader.xfr({0xFF, 0x00, 0x00, 0x00, 0x05, 0xD4, 0x14, 0x01, 0x00, 0x00}, 1000);
+  } catch (const Acr122Error&) {
+  }
+  try {
+    // RF field on
+    (void)reader.xfr({0xFF, 0x00, 0x00, 0x00, 0x04, 0xD4, 0x32, 0x01, 0x01}, 1000);
+  } catch (const Acr122Error&) {
+  }
   return reader;
 }
 
@@ -188,7 +206,7 @@ void Acr122::icc_power_on() {
   }
 }
 
-std::vector<uint8_t> Acr122::xfr(const std::vector<uint8_t>& apdu, int timeout_ms) {
+Acr122::ApduReply Acr122::transmit(const std::vector<uint8_t>& apdu, int timeout_ms) {
   const uint32_t len = static_cast<uint32_t>(apdu.size());
   std::vector<uint8_t> frame;
   frame.reserve(10 + apdu.size());
@@ -209,6 +227,11 @@ std::vector<uint8_t> Acr122::xfr(const std::vector<uint8_t>& apdu, int timeout_m
   if (rx[0] != kDataBlock) {
     throw Acr122Error("Uventet CCID-svar");
   }
+  const uint8_t ccid_status = rx[7];
+  const uint8_t ccid_error = rx[8];
+  if (ccid_error == 0xFE) {
+    return {{}, 0x63, 0x00};
+  }
   const uint32_t payload_len =
       static_cast<uint32_t>(rx[1]) | (static_cast<uint32_t>(rx[2]) << 8) |
       (static_cast<uint32_t>(rx[3]) << 16) | (static_cast<uint32_t>(rx[4]) << 24);
@@ -216,32 +239,99 @@ std::vector<uint8_t> Acr122::xfr(const std::vector<uint8_t>& apdu, int timeout_m
     throw Acr122Error("CCID payload afkortet");
   }
   std::vector<uint8_t> payload(rx.begin() + 10, rx.begin() + 10 + payload_len);
-  const uint8_t ccid_status = rx[7];
-  const uint8_t ccid_error = rx[8];
-  auto hexdump = [](const std::vector<uint8_t>& v) {
-    std::ostringstream os;
-    os << std::hex;
-    for (size_t i = 0; i < v.size(); ++i) {
-      if (i) os << ' ';
-      os.width(2);
-      os.fill('0');
-      os << static_cast<int>(v[i]);
+  ApduReply reply;
+  if (payload.size() >= 2) {
+    const uint8_t sw1 = payload[payload.size() - 2];
+    const uint8_t sw2 = payload[payload.size() - 1];
+    if (sw1 == 0x90 || sw1 == 0x63 || sw1 == 0x61 || sw1 == 0x6A || sw1 == 0x6F) {
+      reply.sw1 = sw1;
+      reply.sw2 = sw2;
+      payload.resize(payload.size() - 2);
+      reply.data = std::move(payload);
+    } else {
+      reply.data = std::move(payload);
+      reply.sw1 = ((ccid_status & 0xC0) == 0) ? 0x90 : 0x6F;
+      reply.sw2 = ccid_error;
     }
-    return os.str();
-  };
-  if (payload.size() >= 2 && payload[payload.size() - 2] == 0x90) {
-    payload.resize(payload.size() - 2);
-    return payload;
+  } else if ((ccid_status & 0xC0) == 0) {
+    reply.data = std::move(payload);
+    reply.sw1 = 0x90;
+  } else {
+    reply.sw1 = 0x6F;
+    reply.sw2 = ccid_error;
   }
-  // Some ACR122 firmware replies (e.g. Get Firmware) omit ISO SW1/SW2.
-  if ((ccid_status & 0xC0) == 0 && !payload.empty()) {
-    return payload;
+  if (reply.sw1 == 0x61) {
+    auto more = transmit({0xFF, 0xC0, 0x00, 0x00, reply.sw2}, timeout_ms);
+    reply.data.insert(reply.data.end(), more.data.begin(), more.data.end());
+    reply.sw1 = more.sw1;
+    reply.sw2 = more.sw2;
   }
+  return reply;
+}
+
+std::vector<uint8_t> Acr122::xfr(const std::vector<uint8_t>& apdu, int timeout_ms) {
+  auto r = transmit(apdu, timeout_ms);
+  if (r.sw1 == 0x90) return r.data;
   std::ostringstream os;
-  os << "APDU fejlede ccid_status=" << std::hex << static_cast<int>(ccid_status)
-     << " err=" << static_cast<int>(ccid_error) << " data=[" << hexdump(payload)
-     << "] raw=[" << hexdump(rx) << "]";
+  os << std::hex << "APDU fejlede SW=" << static_cast<int>(r.sw1) << " "
+     << static_cast<int>(r.sw2);
   throw Acr122Error(os.str());
+}
+
+std::string Acr122::uid_hex(const std::vector<uint8_t>& uid) {
+  std::ostringstream os;
+  os << std::hex << std::uppercase << std::setfill('0');
+  for (uint8_t b : uid) os << std::setw(2) << static_cast<int>(b);
+  return os.str();
+}
+
+std::optional<std::vector<uint8_t>> Acr122::parse_inlist(const std::vector<uint8_t>& data) {
+  const uint8_t needle[] = {0xD5, 0x4B};
+  auto it = std::search(data.begin(), data.end(), std::begin(needle), std::end(needle));
+  if (it == data.end()) return std::nullopt;
+  const size_t i = static_cast<size_t>(it - data.begin());
+  if (i + 3 > data.size()) return std::nullopt;
+  const uint8_t nbtg = data[i + 2];
+  if (nbtg < 1) return std::nullopt;
+  if (i + 8 > data.size()) return std::nullopt;
+  const uint8_t uid_len = data[i + 7];
+  if (uid_len < 4 || i + 8 + uid_len > data.size()) return std::nullopt;
+  return std::vector<uint8_t>(data.begin() + i + 8, data.begin() + i + 8 + uid_len);
+}
+
+std::optional<std::vector<uint8_t>> Acr122::try_uid() {
+  try {
+    auto r = transmit({0xFF, 0xCA, 0x00, 0x00, 0x00}, 400);
+    if (r.sw1 == 0x90 && r.data.size() >= 4) return r.data;
+  } catch (const Acr122Error&) {
+  }
+  try {
+    icc_power_on();
+    auto r = transmit({0xFF, 0x00, 0x00, 0x00, 0x04, 0xD4, 0x4A, 0x01, 0x00}, 600);
+    if (r.sw1 == 0x90) {
+      if (auto uid = parse_inlist(r.data)) return uid;
+      if (r.data.size() >= 4 && r.data[0] != 0xD5) return r.data;
+    }
+  } catch (const Acr122Error&) {
+  }
+  return std::nullopt;
+}
+
+std::vector<uint8_t> Acr122::wait_uid(std::chrono::milliseconds timeout) {
+  using clock = std::chrono::steady_clock;
+  const bool forever = timeout.count() <= 0;
+  const auto deadline = clock::now() + timeout;
+  set_led(Led::Green);
+  while (forever || clock::now() < deadline) {
+    if (auto uid = try_uid()) {
+      blink(Led::Yellow, Led::Yellow, std::chrono::milliseconds{150},
+            std::chrono::milliseconds{50}, 1, true);
+      return *uid;
+    }
+    std::this_thread::sleep_for(std::chrono::milliseconds{200});
+  }
+  set_led(Led::Red);
+  throw Acr122Error("timeout: intet tag");
 }
 
 void Acr122::disable_card_detect_buzzer() {

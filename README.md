@@ -23,11 +23,18 @@ Træk USB-stikket ud og sæt det i igen efter første install.
 
 ## Kør
 
+ACR122U har en to-farvet LED: rød, grøn og gul (begge tændt).
+
 ```bash
-./build/nfc              # demo: grøn, beep, rød, blink, grøn
+./build/nfc read                 # vent på tag, vis UID
+./build/nfc add bloodrayne       # vent på tag, gem navn+UID i tags.conf
+./build/nfc list
+./build/nfc remove bloodrayne    # fjern fra listen
+./build/nfc remove               # vent på tag, fjern det hvis det er gemt
+./build/nfc farver               # rød, grøn, gul + beep
 ./build/nfc led green
-./build/nfc led red
-./build/nfc led off
 ./build/nfc beep 300
 ./build/nfc firmware
 ```
+
+Gemte tags ligger i `tags.conf` i den mappe, du kører fra.
