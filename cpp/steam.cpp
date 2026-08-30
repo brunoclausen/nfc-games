@@ -394,20 +394,24 @@ void apply_steam_session_env() {
   }
 }
 
+std::string SteamLibrary::steam_uri(const SteamGame& game) {
+  const bool shortcut = game.kind == "shortcut" || (game.appid & 0x80000000u) != 0;
+  if (shortcut) {
+    const std::uint64_t gid =
+        (static_cast<std::uint64_t>(game.appid) << 32) | 0x02000000ULL;
+    return "steam://rungameid/" + std::to_string(gid);
+  }
+  return "steam://rungameid/" + std::to_string(game.appid);
+}
+
 void SteamLibrary::launch(const SteamGame& game) {
   if (game.appid == 0) throw std::runtime_error("spil mangler appid");
+  const std::string uri = steam_uri(game);
   const pid_t pid = ::fork();
-  if (pid < 0) throw std::runtime_error("kunne ikke starte spil");
+  if (pid < 0) throw std::runtime_error("kunne ikke starte Steam");
   if (pid != 0) return;
   ::setsid();
   apply_steam_session_env();
-  std::string uri = "steam://rungameid/" + std::to_string(game.appid);
-  if (game.kind == "shortcut") {
-    // Non-Steam shortcuts (PCSX2, Ryujinx, …) use CGameID type Shortcut.
-    const std::uint64_t gid =
-        (static_cast<std::uint64_t>(game.appid) << 32) | 0x02000000ULL;
-    uri = "steam://rungameid/" + std::to_string(gid);
-  }
   ::execlp("steam", "steam", uri.c_str(), static_cast<char*>(nullptr));
   ::_exit(127);
 }

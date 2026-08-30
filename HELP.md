@@ -61,6 +61,9 @@ Ingen fast spillefil. `nfc games` scanner selv hver gang:
 
 Proton og Steam Runtime vises ikke.
 
+Alle spil **og** emu-genveje startes kun via Steam (`steam steam://rungameid/...`),
+som skrivebordsgenvejen. NFC kører ikke PCSX2/Ryujinx direkte.
+
 Har to spil samme navn (fx Batman), så brug **appid** med `nfc add`.
 
 ## Hardware

@@ -28,6 +28,7 @@ class SteamLibrary {
   const std::vector<SteamGame>& games() const { return games_; }
   std::optional<SteamGame> find(std::string_view name_or_appid) const;
   std::vector<SteamGame> matches(std::string_view name_or_appid) const;
+  static std::string steam_uri(const SteamGame& game);
   static void launch(const SteamGame& game);
   static std::vector<RunningGame> running();
   static int stop(std::uint32_t appid = 0);

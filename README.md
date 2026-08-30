@@ -30,7 +30,7 @@ ACR122U har en to-farvet LED: rød, grøn og gul (begge tændt).
 ```bash
 ./build/nfc watch                # tag på = start + gul + beep; tag af = stop + grøn
 ./build/nfc games                # auto-scan Steam-bibliotek + non-Steam shortcuts
-./build/nfc start "BloodRayne 2" # start spil via Steam
+./build/nfc start "BloodRayne 2" # start via Steam (også PCSX2-genveje)
 ./build/nfc lock                 # vis kørende/låst spil
 ./build/nfc stop                 # stop kørende spil
 ./build/nfc read                 # vent på tag, vis UID

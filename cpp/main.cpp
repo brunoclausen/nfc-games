@@ -37,7 +37,7 @@ void print_help(std::ostream& out) {
       "Tags og spil:\n"
       "  nfc games                   auto-scan Steam-spil og shortcuts\n"
       "  nfc watch                   klar=grøn; tag på=gul+beep+start; tag af=stop+grøn; stop=rød\n"
-      "  nfc start <spil|appid>      start spil via Steam (låst mens det kører)\n"
+      "  nfc start <spil|appid>      start via Steam (spil + emu-genveje)\n"
       "  nfc start                   læs tag og start bundet spil\n"
       "  nfc stop [spil|appid]       stop kørende spil\n"
       "  nfc lock                    vis hvilket spil der er låst/kører\n"
@@ -264,12 +264,16 @@ int cmd_watch() {
           game.appid = known->appid;
           game.name = known->name;
           game.kind = known->kind;
+          if (auto full = SteamLibrary::scan().find(std::to_string(known->appid))) {
+            game = *full;
+          }
           bool already = false;
           for (const auto& r : SteamLibrary::running()) {
             if (r.appid == game.appid) already = true;
           }
           if (!already) {
-            std::cout << "watch  starter " << game.name << "  " << game.appid << "\n"
+            std::cout << "watch  starter via Steam  " << game.name << "  "
+                      << SteamLibrary::steam_uri(game) << "\n"
                       << std::flush;
             SteamLibrary::launch(game);
           }
@@ -321,6 +325,9 @@ int cmd_start(const std::string& query) {
     int rc = resolve_game(query, game);
     if (rc != 0) return rc;
   }
+  if (auto full = SteamLibrary::scan().find(std::to_string(game.appid))) {
+    game = *full;
+  }
   auto run = SteamLibrary::running();
   for (const auto& r : run) {
     if (r.appid == game.appid) {
@@ -333,7 +340,8 @@ int cmd_start(const std::string& query) {
               << " kører). nfc stop først\n";
     return 3;
   }
-  std::cout << "starter " << game.name << "  " << game.appid << "  " << game.kind << "\n";
+  std::cout << "starter via Steam  " << game.name << "  " << SteamLibrary::steam_uri(game)
+            << "\n";
   SteamLibrary::launch(game);
   return 0;
 }
