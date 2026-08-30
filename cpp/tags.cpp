@@ -6,6 +6,7 @@
 #include <fstream>
 #include <sstream>
 #include <stdexcept>
+#include <string>
 #include <string_view>
 
 namespace {
@@ -21,6 +22,8 @@ std::string lower(std::string s) {
   for (char& c : s) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
   return s;
 }
+
+bool is_kind(const std::string& s) { return s == "steam" || s == "shortcut"; }
 
 }  // namespace
 
@@ -56,12 +59,22 @@ TagStore TagStore::load(const std::filesystem::path& path) {
     line = trim(line);
     if (line.empty()) continue;
     std::istringstream iss(line);
-    std::string uid, name;
-    iss >> uid;
-    std::getline(iss, name);
-    name = trim(name);
-    if (name.empty()) name = uid;
-    store.tags_.push_back({normalize_uid(uid), normalize_name(name)});
+    std::string uid, second;
+    iss >> uid >> second;
+    Tag t;
+    t.uid = normalize_uid(uid);
+    if (is_kind(second)) {
+      t.kind = second;
+      iss >> t.appid;
+      std::string name;
+      std::getline(iss, name);
+      t.name = normalize_name(trim(name));
+    } else {
+      std::string rest;
+      std::getline(iss, rest);
+      t.name = normalize_name(trim(second + rest));
+    }
+    store.tags_.push_back(std::move(t));
   }
   return store;
 }
@@ -87,16 +100,17 @@ std::optional<Tag> TagStore::find(const std::string& name_or_uid) const {
   return find_uid(name_or_uid);
 }
 
-void TagStore::upsert(const std::string& uid, const std::string& name) {
-  const std::string u = normalize_uid(uid);
-  const std::string n = normalize_name(name);
-  if (u.size() < 8) throw std::runtime_error("UID for kort");
+void TagStore::upsert(Tag tag) {
+  tag.uid = normalize_uid(tag.uid);
+  tag.name = normalize_name(tag.name);
+  if (tag.uid.size() < 8) throw std::runtime_error("UID for kort");
   tags_.erase(std::remove_if(tags_.begin(), tags_.end(),
                              [&](const Tag& t) {
-                               return t.uid == u || lower(t.name) == lower(n);
+                               return t.uid == tag.uid || lower(t.name) == lower(tag.name) ||
+                                      (tag.appid != 0 && t.appid == tag.appid);
                              }),
               tags_.end());
-  tags_.push_back({u, n});
+  tags_.push_back(std::move(tag));
   save();
 }
 
@@ -106,7 +120,8 @@ bool TagStore::remove(const std::string& name_or_uid) {
   const std::string key_uid = normalize_uid(name_or_uid);
   tags_.erase(std::remove_if(tags_.begin(), tags_.end(),
                              [&](const Tag& t) {
-                               return lower(t.name) == key_name || t.uid == key_uid;
+                               return lower(t.name) == key_name || t.uid == key_uid ||
+                                      std::to_string(t.appid) == key_name;
                              }),
               tags_.end());
   if (tags_.size() == before) return false;
@@ -121,9 +136,10 @@ void TagStore::save() const {
   tmp += ".tmp";
   std::ofstream out(tmp, std::ios::trunc);
   if (!out) throw std::runtime_error("kan ikke skrive " + path_.string());
-  out << "# uid  navn\n";
+  out << "# uid  kind  appid  name\n";
   for (const auto& t : tags_) {
-    out << t.uid << "  " << t.name << "\n";
+    out << t.uid << "  " << (t.kind.empty() ? "steam" : t.kind) << "  " << t.appid << "  "
+        << t.name << "\n";
   }
   out.close();
   if (!out) throw std::runtime_error("kan ikke skrive " + path_.string());

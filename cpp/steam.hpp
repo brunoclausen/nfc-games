@@ -20,6 +20,7 @@ class SteamLibrary {
 
   const std::vector<SteamGame>& games() const { return games_; }
   std::optional<SteamGame> find(std::string_view name_or_appid) const;
+  std::vector<SteamGame> matches(std::string_view name_or_appid) const;
 
  private:
   std::vector<SteamGame> games_;

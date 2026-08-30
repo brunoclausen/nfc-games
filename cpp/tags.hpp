@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdint>
 #include <filesystem>
 #include <optional>
 #include <string>
@@ -9,6 +10,8 @@
 struct Tag {
   std::string uid;
   std::string name;
+  std::uint32_t appid = 0;
+  std::string kind;
 };
 
 class TagStore {
@@ -23,8 +26,7 @@ class TagStore {
   std::optional<Tag> find_name(const std::string& name) const;
   std::optional<Tag> find(const std::string& name_or_uid) const;
 
-  // Replaces existing row with the same UID or the same name.
-  void upsert(const std::string& uid, const std::string& name);
+  void upsert(Tag tag);
   bool remove(const std::string& name_or_uid);
   void save() const;
 

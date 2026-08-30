@@ -16,7 +16,7 @@ void usage() {
   std::cerr
       << "brug: nfc [kommando]\n"
       << "  nfc read                 læs tag (UID)\n"
-      << "  nfc add <navn>           læs tag og gem det\n"
+      << "  nfc add <spil>           auto-scan Steam, læs tag, bind spil\n"
       << "  nfc remove <navn|uid>    fjern gemt tag\n"
       << "  nfc remove               læs tag og fjern det hvis det er gemt\n"
       << "  nfc list                 vis gemte tags\n"
@@ -71,9 +71,10 @@ void demo(Acr122& r) {
 void print_tag(const std::string& uid, const TagStore& store) {
   std::cout << "uid  " << uid << "\n";
   if (auto known = store.find_uid(uid)) {
-    std::cout << "navn " << known->name << "\n";
+    std::cout << "spil " << known->name << "\n";
+    if (known->appid) std::cout << "id   " << known->appid << "  " << known->kind << "\n";
   } else {
-    std::cout << "navn (ukendt)\n";
+    std::cout << "spil (ukendt)\n";
   }
 }
 
@@ -102,7 +103,7 @@ int cmd_list() {
     return 0;
   }
   for (const auto& t : store.all()) {
-    std::cout << t.name << "  " << t.uid << "\n";
+    std::cout << t.uid << "  " << t.kind << "  " << t.appid << "  " << t.name << "\n";
   }
   return 0;
 }
@@ -116,14 +117,30 @@ int cmd_read() {
   return 0;
 }
 
-int cmd_add(const std::string& name) {
+int cmd_add(const std::string& query) {
+  auto lib = SteamLibrary::scan();
+  auto hit = lib.matches(query);
+  if (hit.empty()) {
+    std::cerr << "nfc: intet Steam-spil matcher \"" << query << "\"\n";
+    std::cerr << "kør: nfc games\n";
+    return 1;
+  }
+  if (hit.size() > 1) {
+    std::cerr << "nfc: flere spil matcher, brug appid:\n";
+    for (const auto& g : hit) {
+      std::cerr << "  " << g.appid << "  " << g.kind << "  " << g.name << "\n";
+    }
+    return 2;
+  }
+  const SteamGame& game = hit.front();
+  std::cout << "spil " << game.name << "  " << game.appid << "  " << game.kind << "\n";
   auto store = TagStore::load(TagStore::default_path());
   auto reader = Acr122::open();
   auto uid = wait_for_tag(reader);
   const std::string hex = Acr122::uid_hex(uid);
-  store.upsert(hex, name);
+  store.upsert(Tag{hex, game.name, game.appid, game.kind});
   reader.set_led(Acr122::Led::Green);
-  std::cout << "gemt " << name << "  " << hex << "\n";
+  std::cout << "gemt " << game.name << "  " << hex << "\n";
   std::cout << "fil  " << store.path().string() << "\n";
   return 0;
 }

@@ -28,7 +28,7 @@ ACR122U har en to-farvet LED: rød, grøn og gul (begge tændt).
 ```bash
 ./build/nfc games                # auto-scan Steam-bibliotek + non-Steam shortcuts
 ./build/nfc read                 # vent på tag, vis UID
-./build/nfc add bloodrayne       # vent på tag, gem navn+UID i tags.conf
+./build/nfc add "BloodRayne 2"   # auto-scan Steam, vent på tag, bind spil+UID
 ./build/nfc list
 ./build/nfc remove bloodrayne    # fjern fra listen
 ./build/nfc remove               # vent på tag, fjern det hvis det er gemt

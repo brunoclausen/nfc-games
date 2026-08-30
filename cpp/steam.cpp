@@ -262,23 +262,28 @@ SteamLibrary SteamLibrary::scan() {
   return lib;
 }
 
-std::optional<SteamGame> SteamLibrary::find(std::string_view name_or_appid) const {
+std::vector<SteamGame> SteamLibrary::matches(std::string_view name_or_appid) const {
   const std::string q = lower(std::string(name_or_appid));
-  if (q.empty()) return std::nullopt;
+  std::vector<SteamGame> out;
+  if (q.empty()) return out;
   for (const auto& g : games_) {
-    if (std::to_string(g.appid) == q) return g;
-  }
-  for (const auto& g : games_) {
-    if (lower(g.name) == q) return g;
-  }
-  std::optional<SteamGame> partial;
-  int hits = 0;
-  for (const auto& g : games_) {
-    if (lower(g.name).find(q) != std::string::npos) {
-      partial = g;
-      ++hits;
+    if (std::to_string(g.appid) == q) {
+      out.push_back(g);
+      return out;
     }
   }
-  if (hits == 1) return partial;
+  for (const auto& g : games_) {
+    if (lower(g.name) == q) out.push_back(g);
+  }
+  if (!out.empty()) return out;
+  for (const auto& g : games_) {
+    if (lower(g.name).find(q) != std::string::npos) out.push_back(g);
+  }
+  return out;
+}
+
+std::optional<SteamGame> SteamLibrary::find(std::string_view name_or_appid) const {
+  auto hit = matches(name_or_appid);
+  if (hit.size() == 1) return hit.front();
   return std::nullopt;
 }
