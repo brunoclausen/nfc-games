@@ -129,6 +129,16 @@ Acr122::Led parse_led(const std::string& name) {
   throw Acr122Error("ukendt LED: " + name);
 }
 
+void set_led_safe(Acr122& r, Acr122::Led led) {
+  try {
+    r.set_led(led);
+  } catch (const Acr122Error&) {
+  }
+}
+
+// Rød = scanneren lytter ikke (watch kører ikke / USB-fejl).
+void led_not_listening(Acr122& r) { set_led_safe(r, Acr122::Led::Red); }
+
 void show_color(Acr122& r, Acr122::Led led, const char* name) {
   std::cout << "LED " << name << "\n";
   r.set_led(led);
@@ -141,8 +151,8 @@ void demo(Acr122& r) {
   show_color(r, Acr122::Led::Red, "rød");
   show_color(r, Acr122::Led::Green, "grøn");
   show_color(r, Acr122::Led::Yellow, "gul (rød+grøn)");
-  std::cout << "LED grøn (klar)\n";
-  r.set_led(Acr122::Led::Green);
+  std::cout << "LED rød (lytter ikke)\n";
+  led_not_listening(r);
 }
 
 void print_tag(const std::string& uid, const TagStore& store) {
@@ -185,21 +195,45 @@ int cmd_watch() {
   auto reader = Acr122::open();
   reader.set_led(Acr122::Led::Green);
   std::cout << "watch  firmware " << reader.firmware() << "\n";
-  std::cout << "watch  tag på = gul + beep + start, tag af = stop + grøn\n"
+  std::cout << "watch  lytter (grøn). tag på = gul + beep + start, tag af = stop + grøn\n"
+            << "watch  rød = lytter ikke\n"
             << std::flush;
 
   std::string active_uid;
   std::uint32_t active_appid = 0;
   int present = 0;
   int absent = 0;
+  int errors = 0;
+  bool deaf = false;
 
   while (g_watch_run) {
     std::optional<std::vector<std::uint8_t>> uid;
+    bool poll_ok = true;
     try {
       uid = reader.try_uid();
     } catch (const Acr122Error&) {
       uid.reset();
+      poll_ok = false;
     }
+
+    if (!poll_ok) {
+      present = 0;
+      ++errors;
+      if (errors >= 3 && !deaf) {
+        deaf = true;
+        std::cout << "watch  lytter ikke (rød)\n" << std::flush;
+        led_not_listening(reader);
+      }
+      std::this_thread::sleep_for(250ms);
+      continue;
+    }
+    if (deaf) {
+      deaf = false;
+      errors = 0;
+      std::cout << "watch  lytter igen\n" << std::flush;
+      set_led_safe(reader, active_uid.empty() ? Acr122::Led::Green : Acr122::Led::Yellow);
+    }
+    errors = 0;
 
     if (uid) {
       absent = 0;
@@ -216,14 +250,11 @@ int cmd_watch() {
         active_uid = hex;
         if (!known || known->appid == 0) {
           std::cout << "watch  ukendt tag " << hex << "\n" << std::flush;
-          try {
-            reader.set_led(Acr122::Led::Red);
-          } catch (const Acr122Error&) {
-          }
+          set_led_safe(reader, Acr122::Led::Red);
         } else {
           std::cout << "watch  tag på  " << hex << "  " << known->name << "\n" << std::flush;
+          set_led_safe(reader, Acr122::Led::Yellow);
           try {
-            reader.set_led(Acr122::Led::Yellow);
             reader.beep(200ms);
           } catch (const Acr122Error&) {
           }
@@ -254,20 +285,14 @@ int cmd_watch() {
         }
         active_uid.clear();
         active_appid = 0;
-        try {
-          reader.set_led(Acr122::Led::Green);
-        } catch (const Acr122Error&) {
-        }
+        set_led_safe(reader, Acr122::Led::Green);
       }
     }
     std::this_thread::sleep_for(250ms);
   }
 
-  try {
-    reader.set_led(Acr122::Led::Green);
-  } catch (const Acr122Error&) {
-  }
-  std::cout << "watch  stoppet\n";
+  led_not_listening(reader);
+  std::cout << "watch  stoppet (rød, lytter ikke)\n";
   return 0;
 }
 
@@ -288,7 +313,7 @@ int cmd_start(const std::string& query) {
     game.appid = known->appid;
     game.name = known->name;
     game.kind = known->kind;
-    reader.blink(Acr122::Led::Yellow, Acr122::Led::Green, 150ms, 80ms, 1, true);
+    reader.blink(Acr122::Led::Yellow, Acr122::Led::Red, 150ms, 80ms, 1, true);
   } else {
     int rc = resolve_game(query, game);
     if (rc != 0) return rc;
@@ -394,7 +419,7 @@ int cmd_read() {
   auto reader = Acr122::open();
   auto uid = wait_for_tag(reader);
   print_tag(Acr122::uid_hex(uid), store);
-  reader.set_led(Acr122::Led::Green);
+  led_not_listening(reader);
   return 0;
 }
 
@@ -408,7 +433,7 @@ int cmd_add(const std::string& query) {
   auto uid = wait_for_tag(reader);
   const std::string hex = Acr122::uid_hex(uid);
   store.upsert(Tag{hex, game.name, game.appid, game.kind});
-  reader.set_led(Acr122::Led::Green);
+  led_not_listening(reader);
   std::cout << "gemt " << game.name << "  " << hex << "\n";
   std::cout << "fil  " << store.path().string() << "\n";
   return 0;
@@ -428,7 +453,7 @@ int cmd_remove(const std::string& key) {
       std::cout << "ikke gemt\n";
       return 1;
     }
-    reader.blink(Acr122::Led::Red, Acr122::Led::Green, 150ms, 80ms, 2, true);
+    reader.blink(Acr122::Led::Red, Acr122::Led::Red, 150ms, 80ms, 2, true);
     std::cout << "fjernet " << (known ? known->name : target) << "  " << target << "\n";
     return 0;
   }
@@ -507,6 +532,7 @@ int main(int argc, char** argv) {
       usage();
       return 2;
     }
+    if (cmd != "led") led_not_listening(reader);
     return 0;
   } catch (const Acr122Error& e) {
     std::cerr << "nfc: " << e.what() << "\n";

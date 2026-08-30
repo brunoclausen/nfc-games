@@ -93,4 +93,10 @@ cd ~/nfc-games
 ./build/nfc watch
 ```
 
-`nfc watch` kører indtil Ctrl+C. Grøn = intet tag. Gul + ét beep = tag på og spil startes. Tag af = spil stoppes og LED bliver grøn.
+`nfc watch` kører indtil Ctrl+C.
+
+- **Grøn** — scanneren lytter, intet tag
+- **Gul + ét beep** — tag på, spil startes
+- **Rød** — scanneren lytter ikke (watch er stoppet, eller USB-fejl)
+
+Tag af: spil stoppes, LED bliver grøn igen (lytter). Ctrl+C: LED rød.
