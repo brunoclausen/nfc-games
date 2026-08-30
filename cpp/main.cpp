@@ -27,6 +27,8 @@ void print_help(std::ostream& out) {
       "\n"
       "Tags og spil:\n"
       "  nfc games                   auto-scan Steam-spil og shortcuts\n"
+      "  nfc start <spil|appid>      start spil via Steam\n"
+      "  nfc start                   læs tag og start bundet spil\n"
       "  nfc add <spil|appid>        find spil, læs tag, bind dem\n"
       "  nfc read                    læs tag (UID + bundet spil)\n"
       "  nfc list                    vis gemte tags (tags.conf)\n"
@@ -50,6 +52,7 @@ void print_help(std::ostream& out) {
       "Eksempel:\n"
       "  nfc games\n"
       "  nfc add \"BloodRayne 2\"\n"
+      "  nfc start \"BloodRayne 2\"\n"
       "  nfc add 3640596865\n"
       "  nfc read\n";
 }
@@ -142,6 +145,52 @@ std::vector<uint8_t> wait_for_tag(Acr122& reader) {
   return reader.wait_uid(wait_timeout());
 }
 
+int resolve_game(const std::string& query, SteamGame& out) {
+  auto lib = SteamLibrary::scan();
+  auto hit = lib.matches(query);
+  if (hit.empty()) {
+    std::cerr << "nfc: intet Steam-spil matcher \"" << query << "\"\n";
+    std::cerr << "kør: nfc games\n";
+    return 1;
+  }
+  if (hit.size() > 1) {
+    std::cerr << "nfc: flere spil matcher, brug appid:\n";
+    for (const auto& g : hit) {
+      std::cerr << "  " << g.appid << "  " << g.kind << "  " << g.name << "\n";
+    }
+    return 2;
+  }
+  out = hit.front();
+  return 0;
+}
+
+int cmd_start(const std::string& query) {
+  SteamGame game;
+  if (query.empty()) {
+    auto store = TagStore::load(TagStore::default_path());
+    auto reader = Acr122::open();
+    auto uid = wait_for_tag(reader);
+    const std::string hex = Acr122::uid_hex(uid);
+    auto known = store.find_uid(hex);
+    if (!known || known->appid == 0) {
+      reader.set_led(Acr122::Led::Red);
+      std::cout << "uid  " << hex << "\n";
+      std::cerr << "nfc: tagget er ikke bundet til et spil\n";
+      return 1;
+    }
+    game.appid = known->appid;
+    game.name = known->name;
+    game.kind = known->kind;
+    reader.blink(Acr122::Led::Yellow, Acr122::Led::Green, 150ms, 80ms, 1, true);
+  } else {
+    int rc = resolve_game(query, game);
+    if (rc != 0) return rc;
+  }
+  std::cout << "starter " << game.name << "  " << game.appid << "  " << game.kind << "\n";
+  SteamLibrary::launch(game);
+  return 0;
+}
+
 int cmd_games() {
   auto lib = SteamLibrary::scan();
   if (lib.games().empty()) {
@@ -177,21 +226,9 @@ int cmd_read() {
 }
 
 int cmd_add(const std::string& query) {
-  auto lib = SteamLibrary::scan();
-  auto hit = lib.matches(query);
-  if (hit.empty()) {
-    std::cerr << "nfc: intet Steam-spil matcher \"" << query << "\"\n";
-    std::cerr << "kør: nfc games\n";
-    return 1;
-  }
-  if (hit.size() > 1) {
-    std::cerr << "nfc: flere spil matcher, brug appid:\n";
-    for (const auto& g : hit) {
-      std::cerr << "  " << g.appid << "  " << g.kind << "  " << g.name << "\n";
-    }
-    return 2;
-  }
-  const SteamGame& game = hit.front();
+  SteamGame game;
+  int rc = resolve_game(query, game);
+  if (rc != 0) return rc;
   std::cout << "spil " << game.name << "  " << game.appid << "  " << game.kind << "\n";
   auto store = TagStore::load(TagStore::default_path());
   auto reader = Acr122::open();
@@ -254,6 +291,9 @@ int main(int argc, char** argv) {
     }
     if (cmd == "list" || cmd == "ls") return cmd_list();
     if (cmd == "games" || cmd == "spil" || cmd == "steam") return cmd_games();
+    if (cmd == "start" || cmd == "play" || cmd == "launch") {
+      return cmd_start(join_args(argc, argv, 2));
+    }
     if (cmd == "read" || cmd == "læs" || cmd == "laes") return cmd_read();
     if (cmd == "add" || cmd == "tilfoj" || cmd == "tilføj") {
       const std::string name = join_args(argc, argv, 2);

@@ -8,8 +8,11 @@
 #include <fstream>
 #include <optional>
 #include <sstream>
+#include <stdexcept>
 #include <string>
 #include <string_view>
+#include <sys/types.h>
+#include <unistd.h>
 #include <unordered_set>
 #include <vector>
 
@@ -286,4 +289,16 @@ std::optional<SteamGame> SteamLibrary::find(std::string_view name_or_appid) cons
   auto hit = matches(name_or_appid);
   if (hit.size() == 1) return hit.front();
   return std::nullopt;
+}
+
+void SteamLibrary::launch(const SteamGame& game) {
+  if (game.appid == 0) throw std::runtime_error("spil mangler appid");
+  const std::string uri = "steam://rungameid/" + std::to_string(game.appid);
+  const pid_t pid = ::fork();
+  if (pid < 0) throw std::runtime_error("kunne ikke starte Steam");
+  if (pid == 0) {
+    ::setsid();
+    ::execlp("steam", "steam", uri.c_str(), static_cast<char*>(nullptr));
+    ::_exit(127);
+  }
 }
