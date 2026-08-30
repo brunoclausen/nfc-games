@@ -220,6 +220,10 @@ std::vector<SteamGame> parse_shortcuts(const fs::path& path) {
     g.name = entry.s("appname");
     if (g.name.empty()) g.name = entry.s("AppName");
     g.exe = entry.s("exe");
+    g.start_dir = entry.s("startdir");
+    if (g.start_dir.empty()) g.start_dir = entry.s("StartDir");
+    g.launch_options = entry.s("launchoptions");
+    if (g.launch_options.empty()) g.launch_options = entry.s("LaunchOptions");
     g.appid = entry.u32("appid");
     if (g.name.empty()) continue;
     out.push_back(std::move(g));
@@ -332,16 +336,75 @@ std::optional<SteamGame> SteamLibrary::find(std::string_view name_or_appid) cons
   return std::nullopt;
 }
 
+std::string unquote(std::string s) {
+  if (s.size() >= 2 && s.front() == '"' && s.back() == '"') {
+    s = s.substr(1, s.size() - 2);
+  }
+  return s;
+}
+
+void apply_steam_session_env() {
+  DIR* proc = ::opendir("/proc");
+  if (!proc) return;
+  int steam_pid = 0;
+  while (dirent* ent = ::readdir(proc)) {
+    if (ent->d_name[0] < '1' || ent->d_name[0] > '9') continue;
+    std::ifstream in("/proc/" + std::string(ent->d_name) + "/cmdline", std::ios::binary);
+    if (!in) continue;
+    std::string cmd((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+    if (cmd.find("bazzite-steam") != std::string::npos ||
+        cmd.find("ubuntu12_32/steam") != std::string::npos) {
+      steam_pid = std::atoi(ent->d_name);
+      if (cmd.find("bazzite-steam") != std::string::npos) break;
+    }
+  }
+  ::closedir(proc);
+  if (steam_pid <= 0) return;
+  std::ifstream envf("/proc/" + std::to_string(steam_pid) + "/environ", std::ios::binary);
+  if (!envf) return;
+  std::string raw((std::istreambuf_iterator<char>(envf)), std::istreambuf_iterator<char>());
+  std::string key;
+  for (char c : raw) {
+    if (c == '\0') {
+      auto eq = key.find('=');
+      if (eq != std::string::npos) {
+        const std::string k = key.substr(0, eq);
+        if (k == "DISPLAY" || k == "WAYLAND_DISPLAY" || k == "XDG_RUNTIME_DIR" ||
+            k == "DBUS_SESSION_BUS_ADDRESS" || k == "XDG_SESSION_TYPE" ||
+            k == "XAUTHORITY" || k == "XDG_SESSION_DESKTOP" || k == "XDG_CURRENT_DESKTOP") {
+          ::setenv(k.c_str(), key.c_str() + eq + 1, 1);
+        }
+      }
+      key.clear();
+    } else {
+      key.push_back(c);
+    }
+  }
+}
+
 void SteamLibrary::launch(const SteamGame& game) {
-  if (game.appid == 0) throw std::runtime_error("spil mangler appid");
-  const std::string uri = "steam://rungameid/" + std::to_string(game.appid);
+  if (game.appid == 0 && game.exe.empty()) throw std::runtime_error("spil mangler appid");
   const pid_t pid = ::fork();
-  if (pid < 0) throw std::runtime_error("kunne ikke starte Steam");
-  if (pid == 0) {
-    ::setsid();
-    ::execlp("steam", "steam", uri.c_str(), static_cast<char*>(nullptr));
+  if (pid < 0) throw std::runtime_error("kunne ikke starte spil");
+  if (pid != 0) return;
+  ::setsid();
+  apply_steam_session_env();
+  if (game.kind == "shortcut" && !game.exe.empty()) {
+    const std::string dir = unquote(game.start_dir);
+    if (!dir.empty()) ::chdir(dir.c_str());
+    std::string cmd = game.exe;
+    if (!game.launch_options.empty()) cmd += " " + game.launch_options;
+    ::execl("/bin/sh", "sh", "-c", cmd.c_str(), static_cast<char*>(nullptr));
     ::_exit(127);
   }
+  std::string uri = "steam://rungameid/" + std::to_string(game.appid);
+  if (game.kind == "shortcut") {
+    const std::uint64_t gid =
+        (static_cast<std::uint64_t>(game.appid) << 32) | 0x02000000ULL;
+    uri = "steam://rungameid/" + std::to_string(gid);
+  }
+  ::execlp("steam", "steam", uri.c_str(), static_cast<char*>(nullptr));
+  ::_exit(127);
 }
 
 std::vector<RunningGame> SteamLibrary::running() {

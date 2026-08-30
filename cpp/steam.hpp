@@ -10,6 +10,8 @@ struct SteamGame {
   std::uint32_t appid = 0;
   std::string name;
   std::string exe;
+  std::string start_dir;
+  std::string launch_options;
   std::string kind;  // "steam" or "shortcut"
 };
 
