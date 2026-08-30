@@ -2,7 +2,7 @@
 
 Ny NFC-stack til ACR122U på Bazzite. C++ over USB CCID (ingen `pcscd`, ingen `libnfc`).
 
-Brugervejledning: [HELP.md](HELP.md) — også `./build/nfc help`.
+Brugervejledning: `./build/nfc --help` eller [HELP.md](HELP.md) (`./build/nfc help`).
 
 ## Byg
 

@@ -16,21 +16,45 @@ using namespace std::chrono_literals;
 
 namespace {
 
-void usage() {
-  std::cerr
-      << "brug: nfc [kommando]\n"
-      << "  nfc read                 læs tag (UID)\n"
-      << "  nfc add <spil>           auto-scan Steam, læs tag, bind spil\n"
-      << "  nfc remove <navn|uid>    fjern gemt tag\n"
-      << "  nfc remove               læs tag og fjern det hvis det er gemt\n"
-      << "  nfc list                 vis gemte tags\n"
-      << "  nfc games                auto-scan Steam-spil og shortcuts\n"
-      << "  nfc farver               rød, grøn, gul + beep\n"
-      << "  nfc led green|red|yellow|off\n"
-      << "  nfc beep [ms]\n"
-      << "  nfc firmware\n"
-      << "  nfc help                 vis HELP.md\n";
+void print_help(std::ostream& out) {
+  out <<
+      "nfc — ACR122U NFC-tags og Steam-spil\n"
+      "\n"
+      "Brug:\n"
+      "  nfc --help\n"
+      "  nfc -h\n"
+      "  nfc <kommando> [argumenter]\n"
+      "\n"
+      "Tags og spil:\n"
+      "  nfc games                   auto-scan Steam-spil og shortcuts\n"
+      "  nfc add <spil|appid>        find spil, læs tag, bind dem\n"
+      "  nfc read                    læs tag (UID + bundet spil)\n"
+      "  nfc list                    vis gemte tags (tags.conf)\n"
+      "  nfc remove <spil|uid>       fjern gemt tag\n"
+      "  nfc remove                  læs tag og fjern det hvis det er gemt\n"
+      "\n"
+      "Læser:\n"
+      "  nfc farver                  test rød/grøn/gul LED + beep\n"
+      "  nfc led green|red|yellow|off\n"
+      "  nfc beep [ms]               bip (standard 200)\n"
+      "  nfc firmware                vis ACR122U-firmware\n"
+      "\n"
+      "Hjælp:\n"
+      "  nfc --help, nfc -h          denne tekst\n"
+      "  nfc help                    vis HELP.md\n"
+      "\n"
+      "Filer:\n"
+      "  tags.conf                   gemte tags i den mappe, du kører fra\n"
+      "  HELP.md                     ~/nfc-games/HELP.md\n"
+      "\n"
+      "Eksempel:\n"
+      "  nfc games\n"
+      "  nfc add \"BloodRayne 2\"\n"
+      "  nfc add 3640596865\n"
+      "  nfc read\n";
 }
+
+void usage() { print_help(std::cerr); }
 
 std::filesystem::path help_file() {
   std::vector<std::filesystem::path> cands;
@@ -213,12 +237,19 @@ int cmd_remove(const std::string& key) {
 
 int main(int argc, char** argv) {
   try {
+    for (int i = 1; i < argc; ++i) {
+      const std::string a = argv[i];
+      if (a == "--help" || a == "-h") {
+        print_help(std::cout);
+        return 0;
+      }
+    }
     if (argc < 2) {
       usage();
       return 2;
     }
     const std::string cmd = argv[1];
-    if (cmd == "-h" || cmd == "--help" || cmd == "help" || cmd == "hjælp") {
+    if (cmd == "help" || cmd == "hjælp") {
       return cmd_help();
     }
     if (cmd == "list" || cmd == "ls") return cmd_list();

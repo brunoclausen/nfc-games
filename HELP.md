@@ -7,6 +7,7 @@ Kør kommandoerne fra `~/nfc-games`.
 
 ```bash
 cd ~/nfc-games
+./build/nfc --help
 ./build/nfc help
 ```
 
@@ -25,7 +26,8 @@ cd ~/nfc-games
 | `nfc led green\|red\|yellow\|off` | Sæt LED |
 | `nfc beep 300` | Bip (ms) |
 | `nfc firmware` | Vis ACR122U-firmware |
-| `nfc help` | Denne hjælp |
+| `nfc --help` / `nfc -h` | Kort hjælp i terminalen |
+| `nfc help` | Denne hjælp (HELP.md) |
 
 ## Tag-liste
 
