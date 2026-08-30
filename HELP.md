@@ -15,6 +15,7 @@ cd ~/nfc-games
 
 | Kommando | Hvad den gør |
 | --- | --- |
+| `nfc watch` | Tag på = gul + 1 beep + start spil; tag af = stop + grøn |
 | `nfc games` | Auto-scan alle Steam-spil og non-Steam shortcuts |
 | `nfc start "BloodRayne 2"` | Start spil via Steam (kun ét ad gangen) |
 | `nfc start` | Læs tag og start det bundne spil |
@@ -89,6 +90,7 @@ cmake --build build
 cd ~/nfc-games
 ./build/nfc games
 ./build/nfc add "BloodRayne 2"
-./build/nfc read
-./build/nfc list
+./build/nfc watch
 ```
+
+`nfc watch` kører indtil Ctrl+C. Grøn = intet tag. Gul + ét beep = tag på og spil startes. Tag af = spil stoppes og LED bliver grøn.

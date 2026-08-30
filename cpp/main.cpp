@@ -3,6 +3,7 @@
 #include "tags.hpp"
 
 #include <chrono>
+#include <csignal>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
@@ -13,6 +14,14 @@
 #include <vector>
 
 using namespace std::chrono_literals;
+
+namespace {
+
+volatile std::sig_atomic_t g_watch_run = 1;
+
+void watch_signal(int) { g_watch_run = 0; }
+
+}  // namespace
 
 namespace {
 
@@ -27,6 +36,7 @@ void print_help(std::ostream& out) {
       "\n"
       "Tags og spil:\n"
       "  nfc games                   auto-scan Steam-spil og shortcuts\n"
+      "  nfc watch                   tag på = gul + beep + start; tag af = stop + grøn\n"
       "  nfc start <spil|appid>      start spil via Steam (låst mens det kører)\n"
       "  nfc start                   læs tag og start bundet spil\n"
       "  nfc stop [spil|appid]       stop kørende spil\n"
@@ -54,6 +64,7 @@ void print_help(std::ostream& out) {
       "Eksempel:\n"
       "  nfc games\n"
       "  nfc add \"BloodRayne 2\"\n"
+      "  nfc watch\n"
       "  nfc start \"BloodRayne 2\"\n"
       "  nfc lock\n"
       "  nfc stop\n"
@@ -165,6 +176,98 @@ int resolve_game(const std::string& query, SteamGame& out) {
     return 2;
   }
   out = hit.front();
+  return 0;
+}
+
+int cmd_watch() {
+  std::signal(SIGINT, watch_signal);
+  std::signal(SIGTERM, watch_signal);
+  auto reader = Acr122::open();
+  reader.set_led(Acr122::Led::Green);
+  std::cout << "watch  firmware " << reader.firmware() << "\n";
+  std::cout << "watch  tag på = gul + beep + start, tag af = stop + grøn\n"
+            << std::flush;
+
+  std::string active_uid;
+  std::uint32_t active_appid = 0;
+  int present = 0;
+  int absent = 0;
+
+  while (g_watch_run) {
+    std::optional<std::vector<std::uint8_t>> uid;
+    try {
+      uid = reader.try_uid();
+    } catch (const Acr122Error&) {
+      uid.reset();
+    }
+
+    if (uid) {
+      absent = 0;
+      ++present;
+      const std::string hex = Acr122::uid_hex(*uid);
+      if (present >= 2 && hex != active_uid) {
+        if (active_appid != 0) {
+          std::cout << "watch  skifter tag, stopper " << active_appid << "\n" << std::flush;
+          SteamLibrary::stop(active_appid);
+          active_appid = 0;
+        }
+        auto store = TagStore::load(TagStore::default_path());
+        auto known = store.find_uid(hex);
+        active_uid = hex;
+        if (!known || known->appid == 0) {
+          std::cout << "watch  ukendt tag " << hex << "\n" << std::flush;
+          try {
+            reader.set_led(Acr122::Led::Red);
+          } catch (const Acr122Error&) {
+          }
+        } else {
+          std::cout << "watch  tag på  " << hex << "  " << known->name << "\n" << std::flush;
+          try {
+            reader.set_led(Acr122::Led::Yellow);
+            reader.beep(200ms);
+          } catch (const Acr122Error&) {
+          }
+          SteamGame game;
+          game.appid = known->appid;
+          game.name = known->name;
+          game.kind = known->kind;
+          bool already = false;
+          for (const auto& r : SteamLibrary::running()) {
+            if (r.appid == game.appid) already = true;
+          }
+          if (!already) {
+            std::cout << "watch  starter " << game.name << "  " << game.appid << "\n"
+                      << std::flush;
+            SteamLibrary::launch(game);
+          }
+          active_appid = game.appid;
+        }
+      }
+    } else {
+      present = 0;
+      ++absent;
+      if (absent >= 3 && !active_uid.empty()) {
+        std::cout << "watch  tag af\n" << std::flush;
+        if (active_appid != 0) {
+          std::cout << "watch  stopper " << active_appid << "\n" << std::flush;
+          SteamLibrary::stop(active_appid);
+        }
+        active_uid.clear();
+        active_appid = 0;
+        try {
+          reader.set_led(Acr122::Led::Green);
+        } catch (const Acr122Error&) {
+        }
+      }
+    }
+    std::this_thread::sleep_for(250ms);
+  }
+
+  try {
+    reader.set_led(Acr122::Led::Green);
+  } catch (const Acr122Error&) {
+  }
+  std::cout << "watch  stoppet\n";
   return 0;
 }
 
@@ -361,6 +464,7 @@ int main(int argc, char** argv) {
     }
     if (cmd == "list" || cmd == "ls") return cmd_list();
     if (cmd == "games" || cmd == "spil" || cmd == "steam") return cmd_games();
+    if (cmd == "watch" || cmd == "run") return cmd_watch();
     if (cmd == "start" || cmd == "play" || cmd == "launch") {
       return cmd_start(join_args(argc, argv, 2));
     }
