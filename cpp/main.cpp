@@ -36,7 +36,7 @@ void print_help(std::ostream& out) {
       "\n"
       "Tags og spil:\n"
       "  nfc games                   auto-scan Steam-spil og shortcuts\n"
-      "  nfc watch                   tag på = gul + beep + start; tag af = stop + grøn\n"
+      "  nfc watch                   klar=grøn; tag på=gul+beep+start; tag af=stop+grøn; stop=rød\n"
       "  nfc start <spil|appid>      start spil via Steam (låst mens det kører)\n"
       "  nfc start                   læs tag og start bundet spil\n"
       "  nfc stop [spil|appid]       stop kørende spil\n"
@@ -193,18 +193,15 @@ int cmd_watch() {
   std::signal(SIGINT, watch_signal);
   std::signal(SIGTERM, watch_signal);
   auto reader = Acr122::open();
-  reader.set_led(Acr122::Led::Green);
-  std::cout << "watch  firmware " << reader.firmware() << "\n";
-  std::cout << "watch  lytter (grøn). tag på = gul + beep + start, tag af = stop + grøn\n"
-            << "watch  rød = lytter ikke\n"
-            << std::flush;
+  led_not_listening(reader);
+  std::cout << "watch  firmware " << reader.firmware() << "\n" << std::flush;
 
   std::string active_uid;
   std::uint32_t active_appid = 0;
   int present = 0;
   int absent = 0;
   int errors = 0;
-  bool deaf = false;
+  bool deaf = true;
 
   while (g_watch_run) {
     std::optional<std::vector<std::uint8_t>> uid;
@@ -230,8 +227,13 @@ int cmd_watch() {
     if (deaf) {
       deaf = false;
       errors = 0;
-      std::cout << "watch  lytter igen\n" << std::flush;
-      set_led_safe(reader, active_uid.empty() ? Acr122::Led::Green : Acr122::Led::Yellow);
+      if (active_uid.empty() && !uid) {
+        set_led_safe(reader, Acr122::Led::Green);
+        std::cout << "watch  klar (grøn)\n" << std::flush;
+      } else {
+        set_led_safe(reader, Acr122::Led::Yellow);
+        std::cout << "watch  lytter igen\n" << std::flush;
+      }
     }
     errors = 0;
 
@@ -286,6 +288,7 @@ int cmd_watch() {
         active_uid.clear();
         active_appid = 0;
         set_led_safe(reader, Acr122::Led::Green);
+        std::cout << "watch  klar (grøn)\n" << std::flush;
       }
     }
     std::this_thread::sleep_for(250ms);

@@ -95,7 +95,7 @@ cd ~/nfc-games
 
 `nfc watch` kører indtil Ctrl+C.
 
-- **Grøn** — scanneren lytter, intet tag
+- **Grøn** — scanneren er klar og lytter
 - **Gul + ét beep** — tag på, spil startes
 - **Rød** — scanneren lytter ikke (watch er stoppet, eller USB-fejl)
 
