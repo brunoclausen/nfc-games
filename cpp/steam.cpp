@@ -343,6 +343,18 @@ std::string unquote(std::string s) {
   return s;
 }
 
+std::string process_needle(const SteamGame& g) {
+  const std::string opts = g.launch_options;
+  auto q1 = opts.rfind('"');
+  if (q1 != std::string::npos && q1 > 0) {
+    auto q0 = opts.rfind('"', q1 - 1);
+    if (q0 != std::string::npos && q1 - q0 > 8) {
+      return opts.substr(q0 + 1, q1 - q0 - 1);
+    }
+  }
+  return unquote(g.exe);
+}
+
 void apply_steam_session_env() {
   DIR* proc = ::opendir("/proc");
   if (!proc) return;
@@ -438,7 +450,7 @@ std::vector<RunningGame> SteamLibrary::running() {
   auto lib = SteamLibrary::scan();
   for (const auto& g : lib.games()) {
     if (g.exe.empty()) continue;
-    const std::string needle = unquote(g.exe);
+    const std::string needle = process_needle(g);
     if (needle.size() < 8) continue;
     bool already = false;
     for (const auto& r : out) {
@@ -493,7 +505,7 @@ int SteamLibrary::stop(std::uint32_t appid) {
   auto lib = SteamLibrary::scan();
   for (const auto& g : lib.games()) {
     if (appid != 0 && g.appid != appid) continue;
-    const std::string needle = unquote(g.exe);
+    const std::string needle = process_needle(g);
     if (needle.size() < 8) continue;
     DIR* proc = ::opendir("/proc");
     if (!proc) continue;
