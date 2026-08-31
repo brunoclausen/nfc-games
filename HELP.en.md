@@ -129,7 +129,11 @@ cd ~/nfc-games
 
 Tags are stored in `~/.config/nfc-games/tags.conf` (copied from `~/nfc-games/tags.conf` the first time, if it exists). Double-clicking in a file manager starts `nfc watch` in a terminal.
 
-USB reader: the AppImage ships the udev rule and installer. The first `watch`/`add`/`read` prompts for root via pkexec if the rule is missing. Manual: `./dist/nfc-games-x86_64.AppImage udev install`.
+USB reader: the AppImage runs `udev install` by itself if the rule is missing (new Bazzite PC, password via pkexec). Manual:
+
+```bash
+./dist/nfc-games-x86_64.AppImage udev install
+```
 
 ## Typical use
 

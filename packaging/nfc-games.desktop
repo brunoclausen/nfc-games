@@ -9,3 +9,8 @@ Categories=Game;
 Keywords=nfc;steam;acr122u;tag;
 StartupNotify=false
 X-AppImage-Name=nfc-games
+Actions=UdevInstall;
+
+[Desktop Action UdevInstall]
+Name=Install ACR122U udev rule
+Exec=nfc udev install

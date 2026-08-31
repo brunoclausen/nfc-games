@@ -128,7 +128,11 @@ cd ~/nfc-games
 
 Tags gemmes i `~/.config/nfc-games/tags.conf` (kopieres fra `~/nfc-games/tags.conf` første gang, hvis den findes). Dobbeltklik i filhåndtering starter `nfc watch` i en terminal.
 
-USB-læseren: AppImage indeholder udev-regel og installer. Første `watch`/`add`/`read` spørger om root via pkexec, hvis reglen mangler. Manuelt: `./dist/nfc-games-x86_64.AppImage udev install`.
+USB-læseren: AppImage kører `udev install` af sig selv, hvis reglen mangler (ny Bazzite-PC, adgangskode via pkexec). Manuelt:
+
+```bash
+./dist/nfc-games-x86_64.AppImage udev install
+```
 
 ## Typisk brug
 
