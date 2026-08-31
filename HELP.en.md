@@ -2,13 +2,13 @@
 
 C++ program for ACR122U: LED, beep, NFC tags and Steam games.
 
-Run the **AppImage only** (not `./build/nfc`). After the first run:
-
-`~/Applications/nfc-games-x86_64.AppImage`
+Run the built binary `./build/nfc`. The AppImage is optional.
 
 ```bash
-~/Applications/nfc-games-x86_64.AppImage --help
-~/Applications/nfc-games-x86_64.AppImage help
+cmake -S . -B build && cmake --build build
+./build/nfc --help
+./build/nfc help
+./build/nfc watch
 ```
 
 ## Commands
