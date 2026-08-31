@@ -2,20 +2,21 @@
 
 C++-program til ACR122U: LED, beep, NFC-tags og Steam-spil.
 
-Program: `./build/nfc`  
-Kør kommandoerne fra `~/nfc-games`.
+Kør **kun AppImage** (ikke `./build/nfc`). Efter første kørsel:
+
+`~/Applications/nfc-games-x86_64.AppImage`
 
 ```bash
-cd ~/nfc-games
-./build/nfc --help
-./build/nfc help
+~/Applications/nfc-games-x86_64.AppImage --help
+~/Applications/nfc-games-x86_64.AppImage help
 ```
 
 ## Kommandoer
 
 | Kommando | Hvad den gør |
 | --- | --- |
-| `nfc watch` | Tag på = gul + 1 beep + start spil; tag af = stop + grøn |
+| `nfc menu` | Interaktiv menu (tal-valg) |
+| `nfc watch` | Tag på = gul + 2 beep + start spil; tag af = 1 beep + stop + grøn |
 | `nfc games` | Auto-scan alle Steam-spil og non-Steam shortcuts |
 | `nfc start "BloodRayne 2"` | Start spil via Steam (kun ét ad gangen) |
 | `nfc start` | Læs tag og start det bundne spil |
@@ -34,9 +35,10 @@ cd ~/nfc-games
 | `nfc --help` / `nfc -h` | Kort hjælp i terminalen |
 | `nfc help` | Denne hjælp (HELP.md / HELP.en.md) |
 | `nfc sprog` / `nfc lang` | Vis sprog og hvilket der er aktivt |
-| `nfc sprog en` / `nfc lang en` | Skift sprog (da, en) og gem det |
+| `nfc sprog en` / `nfc lang en` | Skift sprog (`da` `en` `de` `sv` `nb` `fr`) og gem det |
 | `nfc udev` | Vis udev-regel til ACR122U |
 | `nfc udev install` | Installér udev-regel (pkexec, ligger i AppImage) |
+| `nfc install` | AppImage: kopiér til ~/Applications, menu, udev |
 
 ## Tag-liste
 
@@ -60,9 +62,13 @@ Filen oprettes først, når et tag bliver gemt med `nfc add`.
 Tekster i `nfc` kan skiftes:
 
 ```bash
-./build/nfc sprog          # liste (aktivt sprog er markeret)
-./build/nfc sprog en       # English
-./build/nfc sprog da       # Dansk
+~/Applications/nfc-games-x86_64.AppImage sprog          # liste (aktivt sprog er markeret)
+~/Applications/nfc-games-x86_64.AppImage sprog en       # English
+~/Applications/nfc-games-x86_64.AppImage sprog da       # Dansk
+~/Applications/nfc-games-x86_64.AppImage sprog de       # Deutsch
+~/Applications/nfc-games-x86_64.AppImage sprog sv       # Svenska
+~/Applications/nfc-games-x86_64.AppImage sprog nb       # Norsk
+~/Applications/nfc-games-x86_64.AppImage sprog fr       # Français
 ```
 
 `nfc lang` er det samme. Valget gemmes i `~/.config/nfc-games/nfc.conf`.  
@@ -100,53 +106,37 @@ Læser: ACR122U (USB `072f:2200`). LED er to-farvet: rød, grøn, gul (begge).
 Første gang, én udev-regel så kernel-NFC ikke stjæler læseren:
 
 ```bash
-sudo cp udev/99-acr122u.rules /etc/udev/rules.d/
-sudo udevadm control --reload
+~/Applications/nfc-games-x86_64.AppImage udev install
 ```
 
-Træk USB ud og sæt i igen. Grøn LED = klar. Gul + beep = tag fundet.
-
-## Byg
-
-```bash
-cd ~/nfc-games
-cmake -S . -B build
-cmake --build build
-```
+Træk USB ud og sæt i igen. Grøn LED = klar. Gul + 2 beep = tag på. Grøn + 1 beep = tag af. Rød = værktøjet kører ikke.
 
 ## AppImage
 
-Fuld, selvstændig binær (system-libusb, hjælp, udev-regel, ikon):
+Første kørsel (eller `./scripts/build-appimage.sh`) installerer AppImage til
+`~/Applications/nfc-games-x86_64.AppImage`, app-menu, `watch` ved login (systemd),
+og udev-reglen (adgangskode via pkexec). Tags gemmes i `~/.config/nfc-games/tags.conf`.
 
 ```bash
-cd ~/nfc-games
-./scripts/build-appimage.sh
-./dist/nfc-games-x86_64.AppImage --help
-./dist/nfc-games-x86_64.AppImage games
-./dist/nfc-games-x86_64.AppImage watch
-```
-
-Tags gemmes i `~/.config/nfc-games/tags.conf` (kopieres fra `~/nfc-games/tags.conf` første gang, hvis den findes). Dobbeltklik i filhåndtering starter `nfc watch` i en terminal.
-
-USB-læseren: AppImage kører `udev install` af sig selv, hvis reglen mangler (ny Bazzite-PC, adgangskode via pkexec). Manuelt:
-
-```bash
-./dist/nfc-games-x86_64.AppImage udev install
+~/Applications/nfc-games-x86_64.AppImage install
+~/Applications/nfc-games-x86_64.AppImage udev install   # kun hvis pkexec blev afbrudt
+~/Applications/nfc-games-x86_64.AppImage games
+~/Applications/nfc-games-x86_64.AppImage watch
 ```
 
 ## Typisk brug
 
 ```bash
-cd ~/nfc-games
-./build/nfc games
-./build/nfc add "BloodRayne 2"
-./build/nfc watch
+AI=~/Applications/nfc-games-x86_64.AppImage
+$AI games
+$AI add "BloodRayne 2"
+$AI watch
 ```
 
 `nfc watch` kører indtil Ctrl+C.
 
-- **Grøn** — scanneren er klar og lytter
-- **Gul + ét beep** — tag på, spil startes
-- **Rød** — scanneren lytter ikke (watch er stoppet, eller USB-fejl)
+- **Grøn + ét beep** — tag af, spil stoppes, scanneren lytter
+- **Gul + to beep** — tag på, spil startes
+- **Rød** — værktøjet kører ikke (watch er stoppet, eller USB-fejl)
 
-Tag af: spil stoppes, LED bliver grøn igen (lytter). Ctrl+C: LED rød.
+Ctrl+C: LED rød.

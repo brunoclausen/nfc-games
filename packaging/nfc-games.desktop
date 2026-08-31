@@ -2,15 +2,35 @@
 Type=Application
 Name=NFC Games
 Comment=ACR122U NFC tags and Steam games
-Exec=nfc watch
+Exec=nfc menu
 Icon=nfc-games
 Terminal=true
 Categories=Game;
 Keywords=nfc;steam;acr122u;tag;
 StartupNotify=false
 X-AppImage-Name=nfc-games
-Actions=UdevInstall;
+Actions=Watch;Menu;Games;List;UdevInstall;
+
+[Desktop Action Watch]
+Name=Watch
+Name[da]=Watch (lyt)
+Exec=nfc watch
+
+[Desktop Action Menu]
+Name=Menu
+Exec=nfc menu
+
+[Desktop Action Games]
+Name=List games
+Name[da]=Vis spil
+Exec=nfc games
+
+[Desktop Action List]
+Name=List tags
+Name[da]=Vis tags
+Exec=nfc list
 
 [Desktop Action UdevInstall]
 Name=Install ACR122U udev rule
+Name[da]=Installér udev-regel
 Exec=nfc udev install

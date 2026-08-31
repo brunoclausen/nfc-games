@@ -30,13 +30,18 @@ class Acr122 {
 
   std::string firmware();
   void set_led(Led led);
-  void beep(std::chrono::milliseconds duration = std::chrono::milliseconds{200});
+  void beep(std::chrono::milliseconds duration = std::chrono::milliseconds{200},
+            int times = 1);
+  // Drop leftover CCID packets and turn the RF field back on.
+  void recover();
+  void flush();
   // Blink then leave `final` on. Buzzer sounds during the on-phase when buzz=true.
   void blink(Led blink_led, Led final, std::chrono::milliseconds on,
              std::chrono::milliseconds off, int repeats, bool buzz);
 
   // One poll. Empty if no tag in the field.
-  std::optional<std::vector<uint8_t>> try_uid();
+  // reactivate: power-cycle the PICC first (needed to find a new tag; skip while holding).
+  std::optional<std::vector<uint8_t>> try_uid(bool reactivate = true);
   // Wait until a tag is seen. timeout=0 waits forever.
   std::vector<uint8_t> wait_uid(std::chrono::milliseconds timeout);
 
@@ -56,6 +61,7 @@ class Acr122 {
   std::vector<uint8_t> xfr(const std::vector<uint8_t>& apdu, int timeout_ms);
   ApduReply transmit(const std::vector<uint8_t>& apdu, int timeout_ms);
   void icc_power_on();
+  void drain();
   std::optional<std::vector<uint8_t>> parse_inlist(const std::vector<uint8_t>& data);
   void disable_card_detect_buzzer();
   void bulk_write(const std::vector<uint8_t>& data, int timeout_ms);

@@ -1,61 +1,82 @@
 # nfc-games
 
-Ny NFC-stack til ACR122U på Bazzite. C++ over USB CCID (ingen `pcscd`, ingen `libnfc`).
+Linux helper: tap an **ACR122U** NFC tag to start or stop a **Steam** game
+(including non-Steam shortcuts from [Steam ROM Manager](https://steamgriddb.github.io/steam-rom-manager/)).
 
-Brugervejledning: `./build/nfc --help` eller [HELP.md](HELP.md) (`./build/nfc help`).
+Dansk: [README.da.md](README.da.md)
 
-## Byg
+**Tested on:** Bazzite (Fedora) x86_64, ACR122U firmware ACR122U216.  
+**Not:** Windows, macOS, other NFC readers, or launching games outside Steam.
+
+## Requirements
+
+- Linux x86_64 (glibc recent enough for a Fedora/Bazzite AppImage)
+- Steam running on the same machine
+- ACR122U USB reader (`072f:2200`)
+- Games you want on tags must already be in Steam (installed or non-Steam shortcut)
+
+## AppImage
+
+This is the only runtime. Do not run `./build/nfc`.
+
+Run the AppImage once. It installs itself:
+
+- always copies itself to `~/Applications/nfc-games-x86_64.AppImage`
+- app menu (`nfc menu`); `watch` at login via a user systemd service
+- ACR122U udev rule (password via pkexec, once)
 
 ```bash
-cmake -S . -B build
-cmake --build build
+chmod +x nfc-games-x86_64.AppImage
+./nfc-games-x86_64.AppImage           # install + watch
+./nfc-games-x86_64.AppImage install   # install only
 ```
 
-## Hardware
-
-Kernel-driveren `pn533_usb` må ikke eje læseren. Installér udev-reglen én gang:
+Building with `./scripts/build-appimage.sh` also runs `install` on this PC.
+Unplug and replug the reader if the first firmware read fails.
 
 ```bash
-sudo cp udev/99-acr122u.rules /etc/udev/rules.d/
-sudo udevadm control --reload
-sudo udevadm trigger --subsystem-match=usb --attr-match=idVendor=072f --attr-match=idProduct=2200
+./nfc-games-x86_64.AppImage firmware   # expect ACR122U216 or similar
+./nfc-games-x86_64.AppImage games
+./nfc-games-x86_64.AppImage add 123456  # bind a tag; use appid if names clash
+./nfc-games-x86_64.AppImage watch       # green = ready; tag on = yellow+2 beeps+start; tag off = 1 beep+green; not running = red
+./nfc-games-x86_64.AppImage udev install  # only if the automatic install did not run
 ```
 
-Træk USB-stikket ud og sæt det i igen efter første install.
+LED: **green** ready, **yellow + 2 beeps** tag on, **green + 1 beep** tag off, **red** not running.
 
-## Kør
+## Config (not inside the AppImage)
 
-ACR122U har en to-farvet LED: rød, grøn og gul (begge tændt).
+| File | Purpose |
+| --- | --- |
+| `~/.config/nfc-games/tags.conf` | tag UID → Steam appid |
+| `~/.config/nfc-games/nfc.conf` | language (`da`, `en`, `de`, `sv`, `nb`, `fr`) |
 
-```bash
-./build/nfc watch                # tag på = start + gul + beep; tag af = stop + grøn
-./build/nfc games                # auto-scan Steam-bibliotek + non-Steam shortcuts
-./build/nfc start "BloodRayne 2" # start via Steam (også PCSX2-genveje)
-./build/nfc lock                 # vis kørende/låst spil
-./build/nfc stop                 # stop kørende spil
-./build/nfc read                 # vent på tag, vis UID
-./build/nfc add "BloodRayne 2"   # auto-scan Steam, vent på tag, bind spil+UID
-./build/nfc list
-./build/nfc remove bloodrayne    # fjern fra listen
-./build/nfc remove               # vent på tag, fjern det hvis det er gemt
-./build/nfc farver               # rød, grøn, gul + beep
-./build/nfc led green
-./build/nfc beep 300
-./build/nfc firmware
-./build/nfc help
-./build/nfc sprog            # vis sprog
-./build/nfc sprog en         # English (nfc lang virker også)
-./build/nfc udev             # vis udev-regel
-./build/nfc udev install     # installér udev-regel (pkexec)
-```
+Steam libraries and ROM shortcuts stay in Steam. Copying the AppImage does
+**not** copy games or tags.
 
-AppImage (fuld pakke):
+Do **not** bind tags to `boot-windows` or Proton/runtime tools.
+
+## Build the AppImage
+
+Need C++20, CMake ≥ 3.16, pkg-config, and libusb-1.0 development files.
 
 ```bash
+# Fedora / Bazzite
+sudo dnf install gcc-c++ cmake pkgconf-pkg-config libusb1-devel
+# Debian / Ubuntu
+# sudo apt install build-essential cmake pkg-config libusb-1.0-0-dev
+
 ./scripts/build-appimage.sh
-./dist/nfc-games-x86_64.AppImage games
+# output: dist/nfc-games-x86_64.AppImage
+# also installs to ~/Applications and restarts watch
 ```
 
-`nfc games` finder Steam selv (`~/.steam/steam`, libraryfolders.vdf og `shortcuts.vdf`). Ingen fast spilleliste.
+Tests (not the runtime):
 
-Gemte tags ligger i `tags.conf` i den mappe, du kører fra.
+```bash
+cmake -S . -B build && cmake --build build && ctest --test-dir build
+```
+
+## License
+
+[MIT](LICENSE)

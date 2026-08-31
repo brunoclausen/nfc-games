@@ -2,20 +2,21 @@
 
 C++ program for ACR122U: LED, beep, NFC tags and Steam games.
 
-Program: `./build/nfc`  
-Run the commands from `~/nfc-games`.
+Run the **AppImage only** (not `./build/nfc`). After the first run:
+
+`~/Applications/nfc-games-x86_64.AppImage`
 
 ```bash
-cd ~/nfc-games
-./build/nfc --help
-./build/nfc help
+~/Applications/nfc-games-x86_64.AppImage --help
+~/Applications/nfc-games-x86_64.AppImage help
 ```
 
 ## Commands
 
 | Command | What it does |
 | --- | --- |
-| `nfc watch` | Tag on = yellow + 1 beep + start game; tag off = stop + green |
+| `nfc menu` | Interactive menu (numbered) |
+| `nfc watch` | Tag on = yellow + 2 beeps + start game; tag off = 1 beep + stop + green |
 | `nfc games` | Auto-scan all Steam games and non-Steam shortcuts |
 | `nfc start "BloodRayne 2"` | Start game via Steam (only one at a time) |
 | `nfc start` | Read tag and start the bound game |
@@ -34,9 +35,10 @@ cd ~/nfc-games
 | `nfc --help` / `nfc -h` | Short help in the terminal |
 | `nfc help` | This help (HELP.md / HELP.en.md) |
 | `nfc lang` / `nfc sprog` | List languages and the active one |
-| `nfc lang en` / `nfc sprog en` | Switch language (da, en) and save it |
+| `nfc lang en` / `nfc sprog en` | Switch language (`da` `en` `de` `sv` `nb` `fr`) and save it |
 | `nfc udev` | Show udev rule for ACR122U |
 | `nfc udev install` | Install udev rule (pkexec, bundled in the AppImage) |
+| `nfc install` | AppImage: copy to ~/Applications, menu, udev |
 
 ## Tag list
 
@@ -60,9 +62,9 @@ The file is created the first time a tag is saved with `nfc add`.
 CLI text can be switched:
 
 ```bash
-./build/nfc lang          # list (active language is marked)
-./build/nfc lang en       # English
-./build/nfc lang da       # Danish
+~/Applications/nfc-games-x86_64.AppImage lang          # list (active language is marked)
+~/Applications/nfc-games-x86_64.AppImage lang en       # English
+~/Applications/nfc-games-x86_64.AppImage lang da       # Danish
 ```
 
 `nfc sprog` is the same. The choice is saved in `~/.config/nfc-games/nfc.conf`.  
@@ -101,53 +103,37 @@ Reader: ACR122U (USB `072f:2200`). LED is two-color: red, green, yellow (both).
 First time, one udev rule so kernel NFC does not steal the reader:
 
 ```bash
-sudo cp udev/99-acr122u.rules /etc/udev/rules.d/
-sudo udevadm control --reload
+~/Applications/nfc-games-x86_64.AppImage udev install
 ```
 
-Unplug USB and plug it back in. Green LED = ready. Yellow + beep = tag found.
-
-## Build
-
-```bash
-cd ~/nfc-games
-cmake -S . -B build
-cmake --build build
-```
+Unplug USB and plug it back in. Green LED = ready. Yellow + 2 beeps = tag on. Green + 1 beep = tag off. Red = tool not running.
 
 ## AppImage
 
-Self-contained binary (system libusb, help, udev rule, icon):
+The first run (or `./scripts/build-appimage.sh`) installs the AppImage to
+`~/Applications/nfc-games-x86_64.AppImage`, the app menu, `watch` at login (systemd),
+and the udev rule (password via pkexec). Tags are stored in `~/.config/nfc-games/tags.conf`.
 
 ```bash
-cd ~/nfc-games
-./scripts/build-appimage.sh
-./dist/nfc-games-x86_64.AppImage --help
-./dist/nfc-games-x86_64.AppImage games
-./dist/nfc-games-x86_64.AppImage watch
-```
-
-Tags are stored in `~/.config/nfc-games/tags.conf` (copied from `~/nfc-games/tags.conf` the first time, if it exists). Double-clicking in a file manager starts `nfc watch` in a terminal.
-
-USB reader: the AppImage runs `udev install` by itself if the rule is missing (new Bazzite PC, password via pkexec). Manual:
-
-```bash
-./dist/nfc-games-x86_64.AppImage udev install
+~/Applications/nfc-games-x86_64.AppImage install
+~/Applications/nfc-games-x86_64.AppImage udev install   # only if pkexec was cancelled
+~/Applications/nfc-games-x86_64.AppImage games
+~/Applications/nfc-games-x86_64.AppImage watch
 ```
 
 ## Typical use
 
 ```bash
-cd ~/nfc-games
-./build/nfc games
-./build/nfc add "BloodRayne 2"
-./build/nfc watch
+AI=~/Applications/nfc-games-x86_64.AppImage
+$AI games
+$AI add "BloodRayne 2"
+$AI watch
 ```
 
 `nfc watch` runs until Ctrl+C.
 
-- **Green** — scanner is ready and listening
-- **Yellow + one beep** — tag on, game starts
-- **Red** — scanner is not listening (watch stopped, or USB error)
+- **Green + one beep** — tag off, game stops, scanner is listening
+- **Yellow + two beeps** — tag on, game starts
+- **Red** — tool is not running (watch stopped, or USB error)
 
-Tag off: game stops, LED turns green again (listening). Ctrl+C: LED red.
+Ctrl+C: LED red.

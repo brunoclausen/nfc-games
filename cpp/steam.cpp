@@ -46,6 +46,7 @@ bool is_tool(const SteamGame& g) {
   if (n.find("proton") == 0) return true;
   if (n.find("steam linux runtime") == 0) return true;
   if (n.find("steamworks common") == 0) return true;
+  if (n == "boot-windows") return true;
   if (g.appid == 228980) return true;
   return false;
 }

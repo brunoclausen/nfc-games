@@ -3,204 +3,20 @@
 #include <cctype>
 #include <cstdlib>
 #include <cstring>
+#include <filesystem>
 #include <fstream>
 #include <pwd.h>
 #include <string>
 #include <unistd.h>
+#include <unordered_map>
 #include <vector>
 
 namespace {
 
-struct Msg {
-  const char* key;
-  const char* da;
-  const char* en;
-};
-
-constexpr Msg kMsg[] = {
-    {"help_text",
-     "nfc — ACR122U NFC-tags og Steam-spil\n"
-     "\n"
-     "Brug:\n"
-     "  nfc --help\n"
-     "  nfc -h\n"
-     "  nfc <kommando> [argumenter]\n"
-     "\n"
-     "Tags og spil:\n"
-     "  nfc games                   auto-scan Steam-spil og shortcuts\n"
-     "  nfc watch                   klar=grøn; tag på=gul+beep+start; tag af=stop+grøn; stop=rød\n"
-     "  nfc start <spil|appid>      start via Steam (spil + emu-genveje)\n"
-     "  nfc start                   læs tag og start bundet spil\n"
-     "  nfc stop [spil|appid]       stop kørende spil\n"
-     "  nfc lock                    vis hvilket spil der er låst/kører\n"
-     "  nfc add <spil|appid>        find spil, læs tag, bind dem\n"
-     "  nfc read                    læs tag (UID + bundet spil)\n"
-     "  nfc list                    vis gemte tags (tags.conf)\n"
-     "  nfc remove <spil|uid>       fjern gemt tag\n"
-     "  nfc remove                  læs tag og fjern det hvis det er gemt\n"
-     "\n"
-     "Sprog:\n"
-     "  nfc sprog                   vis sprog og hvilket der er aktivt\n"
-     "  nfc sprog <kode>            skift sprog (da, en) og gem det\n"
-     "  nfc lang                    samme som nfc sprog\n"
-     "\n"
-     "Læser:\n"
-     "  nfc farver                  test rød/grøn/gul LED + beep\n"
-     "  nfc led green|red|yellow|off\n"
-     "  nfc beep [ms]               bip (standard 200)\n"
-     "  nfc firmware                vis ACR122U-firmware\n"
-     "  nfc udev                    vis udev-regel til ACR122U\n"
-     "  nfc udev install            installér udev-regel (pkexec)\n"
-     "\n"
-     "Hjælp:\n"
-     "  nfc --help, nfc -h          denne tekst\n"
-     "  nfc help                    vis HELP.md på aktivt sprog\n"
-     "\n"
-     "Filer:\n"
-     "  tags.conf                   gemte tags i den mappe, du kører fra\n"
-     "  HELP.md                     ~/nfc-games/HELP.md\n"
-     "  ~/.config/nfc-games/nfc.conf  valgt sprog\n"
-     "\n"
-     "Eksempel:\n"
-     "  nfc games\n"
-     "  nfc add \"BloodRayne 2\"\n"
-     "  nfc watch\n"
-     "  nfc start \"BloodRayne 2\"\n"
-     "  nfc lock\n"
-     "  nfc stop\n"
-     "  nfc add 3640596865\n"
-     "  nfc read\n"
-     "  nfc sprog\n"
-     "  nfc sprog en\n",
-     "nfc — ACR122U NFC tags and Steam games\n"
-     "\n"
-     "Usage:\n"
-     "  nfc --help\n"
-     "  nfc -h\n"
-     "  nfc <command> [arguments]\n"
-     "\n"
-     "Tags and games:\n"
-     "  nfc games                   auto-scan Steam games and shortcuts\n"
-     "  nfc watch                   ready=green; tag on=yellow+beep+start; tag off=stop+green; stop=red\n"
-     "  nfc start <game|appid>      start via Steam (games + emu shortcuts)\n"
-     "  nfc start                   read tag and start bound game\n"
-     "  nfc stop [game|appid]       stop running game\n"
-     "  nfc lock                    show which game is locked/running\n"
-     "  nfc add <game|appid>        find game, read tag, bind them\n"
-     "  nfc read                    read tag (UID + bound game)\n"
-     "  nfc list                    show saved tags (tags.conf)\n"
-     "  nfc remove <game|uid>       remove saved tag\n"
-     "  nfc remove                  read tag and remove it if saved\n"
-     "\n"
-     "Language:\n"
-     "  nfc lang                    list languages and the active one\n"
-     "  nfc lang <code>             switch language (da, en) and save it\n"
-     "  nfc sprog                   same as nfc lang\n"
-     "\n"
-     "Reader:\n"
-     "  nfc farver                  test red/green/yellow LED + beep\n"
-     "  nfc led green|red|yellow|off\n"
-     "  nfc beep [ms]               beep (default 200)\n"
-     "  nfc firmware                show ACR122U firmware\n"
-     "  nfc udev                    show udev rule for ACR122U\n"
-     "  nfc udev install            install udev rule (pkexec)\n"
-     "\n"
-     "Help:\n"
-     "  nfc --help, nfc -h          this text\n"
-     "  nfc help                    show HELP.md in the active language\n"
-     "\n"
-     "Files:\n"
-     "  tags.conf                   saved tags in the directory you run from\n"
-     "  HELP.md                     ~/nfc-games/HELP.md\n"
-     "  ~/.config/nfc-games/nfc.conf  selected language\n"
-     "\n"
-     "Example:\n"
-     "  nfc games\n"
-     "  nfc add \"BloodRayne 2\"\n"
-     "  nfc watch\n"
-     "  nfc start \"BloodRayne 2\"\n"
-     "  nfc lock\n"
-     "  nfc stop\n"
-     "  nfc add 3640596865\n"
-     "  nfc read\n"
-     "  nfc lang\n"
-     "  nfc lang en\n"},
-    {"help_missing", "help-fil: HELP.md (ikke fundet)", "help file: HELP.md (not found)"},
-    {"unknown_led", "ukendt LED: ", "unknown LED: "},
-    {"led_red", "rød", "red"},
-    {"led_green", "grøn", "green"},
-    {"led_yellow", "gul (rød+grøn)", "yellow (red+green)"},
-    {"led_not_listening", "LED rød (lytter ikke)", "LED red (not listening)"},
-    {"game", "spil", "game"},
-    {"game_unknown", "spil (ukendt)", "game (unknown)"},
-    {"wait_tag", "læg et tag på læseren...", "place a tag on the reader..."},
-    {"no_match", "nfc: intet Steam-spil matcher ", "nfc: no Steam game matches "},
-    {"run_games", "kør: nfc games", "run: nfc games"},
-    {"multi_match", "nfc: flere spil matcher, brug appid:",
-     "nfc: several games match, use appid:"},
-    {"watch_not_listening", "watch  lytter ikke (rød)", "watch  not listening (red)"},
-    {"watch_ready", "watch  klar (grøn)", "watch  ready (green)"},
-    {"watch_listening_again", "watch  lytter igen", "watch  listening again"},
-    {"watch_switch_stop", "watch  skifter tag, stopper ", "watch  switching tag, stopping "},
-    {"watch_unknown_tag", "watch  ukendt tag ", "watch  unknown tag "},
-    {"watch_tag_on", "watch  tag på  ", "watch  tag on  "},
-    {"watch_start_steam", "watch  starter via Steam  ", "watch  starting via Steam  "},
-    {"watch_tag_off", "watch  tag af", "watch  tag off"},
-    {"watch_stopping", "watch  stopper ", "watch  stopping "},
-    {"watch_stopped", "watch  stoppet (rød, lytter ikke)", "watch  stopped (red, not listening)"},
-    {"watch_paused", "watch  USB fri til add/read", "watch  USB free for add/read"},
-    {"usb_busy", "nfc: USB optaget (prøv igen)", "nfc: USB busy (try again)"},
-    {"tag_unbound", "nfc: tagget er ikke bundet til et spil",
-     "nfc: tag is not bound to a game"},
-    {"already_running", "kører allerede ", "already running "},
-    {"locked", "nfc: spil er låst (appid ", "nfc: game is locked (appid "},
-    {"locked_suffix", " kører). nfc stop først", " is running). nfc stop first"},
-    {"start_steam", "starter via Steam  ", "starting via Steam  "},
-    {"nothing_running_unlocked", "intet spil kører (ikke låst)", "no game running (unlocked)"},
-    {"locked_line", "låst  ", "locked  "},
-    {"nothing_running", "intet spil kører", "no game running"},
-    {"stopping", "stopper ", "stopping "},
-    {"still_running", "nfc: spillet kører stadig", "nfc: game is still running"},
-    {"stopped", "stoppet", "stopped"},
-    {"no_steam_games", "ingen Steam-spil fundet", "no Steam games found"},
-    {"games_count_suffix", " spil", " games"},
-    {"no_tags", "ingen tags i ", "no tags in "},
-    {"saved", "gemt ", "saved "},
-    {"file", "fil  ", "file  "},
-    {"not_saved", "ikke gemt", "not saved"},
-    {"removed", "fjernet ", "removed "},
-    {"not_found", "nfc: ikke fundet: ", "nfc: not found: "},
-    {"lang_active", "aktiv", "active"},
-    {"lang_set", "sprog sat til ", "language set to "},
-    {"lang_unknown", "nfc: ukendt sprog. Vælg et af:",
-     "nfc: unknown language. Choose one of:"},
-    {"lang_saved", "gemt i ", "saved in "},
-    {"no_reader", "Ingen ACR122U fundet (USB 072f:2200). Er læseren sat i?",
-     "No ACR122U found (USB 072f:2200). Is the reader plugged in?"},
-    {"claim_fail", "Kunne ikke claim USB-interface: ",
-     "Could not claim USB interface: "},
-    {"claim_hint", " (kør med sudo eller installer udev-reglen)",
-     " (run with sudo or install the udev rule)"},
-    {"timeout_tag", "timeout: intet tag", "timeout: no tag"},
-    {"ccid_short", "CCID-svar for kort", "CCID reply too short"},
-    {"ccid_unexpected", "Uventet CCID-svar", "Unexpected CCID reply"},
-    {"ccid_trunc", "CCID payload afkortet", "CCID payload truncated"},
-    {"apdu_fail", "APDU fejlede SW=", "APDU failed SW="},
-    {"empty_name", "tomt navn", "empty name"},
-    {"uid_short", "UID for kort", "UID too short"},
-    {"cannot_write", "kan ikke skrive ", "cannot write "},
-    {"missing_appid", "spil mangler appid", "game is missing appid"},
-    {"steam_fork", "kunne ikke starte Steam", "could not start Steam"},
-    {"udev_missing", "udev-regel ikke fundet", "udev rule not found"},
-    {"udev_install", "installér (én gang):", "install (once):"},
-    {"udev_replug", "træk USB ud og sæt i igen", "unplug USB and plug it back in"},
-    {"udev_ok", "udev-regel installeret", "udev rule installed"},
-    {"udev_fail", "nfc: kunne ikke installere udev-regel", "nfc: could not install udev rule"},
-    {"udev_helper_missing", "nfc: udev-installer mangler i AppImage",
-     "nfc: udev installer missing from AppImage"},
-};
-
 std::string g_code = "da";
+std::unordered_map<std::string, std::string> g_msg;
+std::unordered_map<std::string, std::string> g_fallback;
+std::vector<Language> g_langs;
 
 std::string lower(std::string s) {
   for (char& c : s) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
@@ -214,10 +30,133 @@ std::string trim(std::string s) {
   return s;
 }
 
+std::string unescape(std::string s) {
+  std::string out;
+  out.reserve(s.size());
+  for (size_t i = 0; i < s.size(); ++i) {
+    if (s[i] == '\\' && i + 1 < s.size()) {
+      const char n = s[++i];
+      if (n == 'n') out.push_back('\n');
+      else if (n == 't') out.push_back('\t');
+      else out.push_back(n);
+    } else {
+      out.push_back(s[i]);
+    }
+  }
+  return out;
+}
+
+std::vector<std::filesystem::path> lang_dirs() {
+  std::vector<std::filesystem::path> dirs;
+  auto add = [&](std::filesystem::path p) {
+    if (!p.empty()) dirs.push_back(std::move(p));
+  };
+  if (const char* share = std::getenv("NFC_SHARE"); share && *share) {
+    add(std::filesystem::path(share) / "lang");
+    add(share);
+  }
+  add(std::filesystem::current_path() / "lang");
+  add(std::filesystem::current_path());
+  char buf[4096];
+  const ssize_t n = ::readlink("/proc/self/exe", buf, sizeof(buf) - 1);
+  if (n > 0) {
+    buf[n] = 0;
+    const auto exe = std::filesystem::path(buf);
+    const auto root = exe.parent_path();
+    add(root / "lang");
+    add(root.parent_path() / "lang");
+    add(root.parent_path() / "share" / "nfc-games" / "lang");
+    add(root.parent_path().parent_path() / "share" / "nfc-games" / "lang");
+  }
+  return dirs;
+}
+
+std::filesystem::path find_lang_file(const std::string& name) {
+  for (const auto& dir : lang_dirs()) {
+    const auto p = dir / name;
+    std::error_code ec;
+    if (std::filesystem::is_regular_file(p, ec)) return p;
+  }
+  return {};
+}
+
+void load_lang_file(const std::filesystem::path& path,
+                    std::unordered_map<std::string, std::string>& out) {
+  std::ifstream in(path);
+  if (!in) return;
+  std::string line;
+  while (std::getline(in, line)) {
+    if (!line.empty() && line.back() == '\r') line.pop_back();
+    if (line.empty() || line[0] == '#') continue;
+    const auto here = line.find("<<<");
+    if (here != std::string::npos && here > 0) {
+      auto key = trim(line.substr(0, here));
+      std::string val;
+      while (std::getline(in, line)) {
+        if (!line.empty() && line.back() == '\r') line.pop_back();
+        if (trim(line) == "<<<") break;
+        if (!val.empty()) val.push_back('\n');
+        val += line;
+      }
+      if (!key.empty()) out[key] = std::move(val);
+      continue;
+    }
+    const auto eq = line.find('=');
+    if (eq == std::string::npos) continue;
+    auto key = trim(line.substr(0, eq));
+    auto val = unescape(line.substr(eq + 1));
+    if (!key.empty()) out[key] = std::move(val);
+  }
+}
+
+std::vector<std::pair<std::string, std::string>> g_lang_store;
+
+void load_lang_list_ok() {
+  g_langs.clear();
+  g_lang_store.clear();
+  const auto path = find_lang_file("langs.txt");
+  if (path.empty()) {
+    g_lang_store = {{"da", "Dansk"}, {"en", "English"}};
+  } else {
+    std::ifstream in(path);
+    std::string line;
+    while (std::getline(in, line)) {
+      if (!line.empty() && line.back() == '\r') line.pop_back();
+      line = trim(line);
+      if (line.empty() || line[0] == '#') continue;
+      auto sp = line.find_first_of(" \t");
+      std::string code, name;
+      if (sp == std::string::npos) {
+        code = line;
+        name = line;
+      } else {
+        code = trim(line.substr(0, sp));
+        name = trim(line.substr(sp + 1));
+      }
+      if (code.empty()) continue;
+      g_lang_store.emplace_back(std::move(code), std::move(name));
+    }
+  }
+  g_langs.reserve(g_lang_store.size());
+  for (const auto& p : g_lang_store) {
+    g_langs.push_back({p.first.c_str(), p.second.c_str()});
+  }
+}
+
 std::string normalize_code(std::string_view raw) {
   std::string s = lower(trim(std::string{raw}));
+  auto dot = s.find('.');
+  if (dot != std::string::npos) s = s.substr(0, dot);
+  auto us = s.find('_');
+  if (us != std::string::npos) s = s.substr(0, us);
+  auto dash = s.find('-');
+  if (dash != std::string::npos) s = s.substr(0, dash);
   if (s == "dk" || s == "dansk" || s == "danish") return "da";
   if (s == "us" || s == "gb" || s == "engelsk" || s == "english") return "en";
+  if (s == "german" || s == "deutsch" || s == "tysk") return "de";
+  if (s == "se" || s == "swedish" || s == "svenska" || s == "svensk") return "sv";
+  if (s == "no" || s == "nn" || s == "norsk" || s == "norwegian") return "nb";
+  if (s == "french" || s == "francais" || s == "français" || s == "fransk") return "fr";
   return s;
 }
 
@@ -228,20 +167,31 @@ bool known_code(const std::string& code) {
   return false;
 }
 
-}  // namespace
-
-std::filesystem::path nfc_config_dir() {
-  if (const char* xdg = std::getenv("XDG_CONFIG_HOME"); xdg && *xdg) {
-    return std::filesystem::path(xdg) / "nfc-games";
+std::string detect_system_lang() {
+  const char* keys[] = {"LC_ALL", "LC_MESSAGES", "LANG", nullptr};
+  for (int i = 0; keys[i]; ++i) {
+    const char* v = std::getenv(keys[i]);
+    if (!v || !*v) continue;
+    std::string s = v;
+    if (s == "C" || s == "C.UTF-8" || s == "POSIX") continue;
+    auto code = normalize_code(s);
+    if (known_code(code)) return code;
   }
-  const char* home = std::getenv("HOME");
-  if (!home || !*home) {
-    if (passwd* pw = ::getpwuid(::getuid())) home = pw->pw_dir;
-  }
-  return std::filesystem::path(home && *home ? home : "/tmp") / ".config" / "nfc-games";
+  return {};
 }
 
-namespace {
+void reload_catalog() {
+  g_fallback.clear();
+  g_msg.clear();
+  if (auto en = find_lang_file("en.txt"); !en.empty()) load_lang_file(en, g_fallback);
+  if (g_code == "en") {
+    g_msg = g_fallback;
+    return;
+  }
+  if (auto cur = find_lang_file(g_code + ".txt"); !cur.empty()) {
+    load_lang_file(cur, g_msg);
+  }
+}
 
 std::string read_config_lang() {
   std::ifstream in(lang_config_path());
@@ -259,11 +209,20 @@ std::string read_config_lang() {
 
 }  // namespace
 
+std::filesystem::path nfc_config_dir() {
+  if (const char* xdg = std::getenv("XDG_CONFIG_HOME"); xdg && *xdg) {
+    return std::filesystem::path(xdg) / "nfc-games";
+  }
+  const char* home = std::getenv("HOME");
+  if (!home || !*home) {
+    if (passwd* pw = ::getpwuid(::getuid())) home = pw->pw_dir;
+  }
+  return std::filesystem::path(home && *home ? home : "/tmp") / ".config" / "nfc-games";
+}
+
 std::vector<Language> languages() {
-  return {
-      {"da", "Dansk"},
-      {"en", "English"},
-  };
+  if (g_langs.empty()) load_lang_list_ok();
+  return g_langs;
 }
 
 std::filesystem::path lang_config_path() { return nfc_config_dir() / "nfc.conf"; }
@@ -278,7 +237,9 @@ const char* current_lang_name() {
 }
 
 void i18n_init() {
+  load_lang_list_ok();
   g_code = "da";
+  if (auto sys = detect_system_lang(); !sys.empty()) g_code = sys;
   if (auto from_file = read_config_lang(); !from_file.empty() && known_code(from_file)) {
     g_code = from_file;
   }
@@ -286,12 +247,14 @@ void i18n_init() {
     auto code = normalize_code(env);
     if (known_code(code)) g_code = code;
   }
+  reload_catalog();
 }
 
 bool set_lang(std::string_view code) {
   auto norm = normalize_code(code);
   if (!known_code(norm)) return false;
   g_code = norm;
+  reload_catalog();
   auto dir = nfc_config_dir();
   std::error_code ec;
   std::filesystem::create_directories(dir, ec);
@@ -308,10 +271,11 @@ bool set_lang(std::string_view code) {
 }
 
 const char* t(const char* key) {
-  const bool en = g_code == "en";
-  for (const auto& m : kMsg) {
-    if (std::strcmp(m.key, key) == 0) return en ? m.en : m.da;
-  }
+  if (!key) return "";
+  auto it = g_msg.find(key);
+  if (it != g_msg.end()) return it->second.c_str();
+  it = g_fallback.find(key);
+  if (it != g_fallback.end()) return it->second.c_str();
   return key;
 }
 

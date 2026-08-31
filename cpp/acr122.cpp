@@ -174,6 +174,7 @@ void Acr122::bulk_write(const std::vector<uint8_t>& data, int timeout_ms) {
                                 static_cast<int>(data.size()), &transferred,
                                 timeout_ms);
   if (rc != 0) {
+    if (rc == LIBUSB_ERROR_TIMEOUT) drain();
     throw Acr122Error("USB write: " + usb_err(rc));
   }
   if (max_packet_ > 0 && (data.size() % max_packet_) == 0) {
@@ -188,6 +189,7 @@ std::vector<uint8_t> Acr122::bulk_read(int timeout_ms) {
                                 static_cast<int>(buf.size()), &transferred,
                                 timeout_ms);
   if (rc != 0) {
+    if (rc == LIBUSB_ERROR_TIMEOUT) drain();
     throw Acr122Error("USB read: " + usb_err(rc));
   }
   if (transferred < 10) {
@@ -196,13 +198,47 @@ std::vector<uint8_t> Acr122::bulk_read(int timeout_ms) {
   return {buf.begin(), buf.begin() + transferred};
 }
 
+void Acr122::drain() {
+  if (!handle_) return;
+  std::array<uint8_t, 271> buf{};
+  int transferred = 0;
+  for (int i = 0; i < 8; ++i) {
+    const int rc = libusb_bulk_transfer(handle_, ep_in_, buf.data(),
+                                        static_cast<int>(buf.size()), &transferred, 30);
+    if (rc != 0) break;
+  }
+}
+
+void Acr122::flush() { drain(); }
+
 void Acr122::icc_power_on() {
   std::vector<uint8_t> frame = {kIccPowerOn, 0, 0, 0, 0, 0, seq_++, 0x01, 0, 0};
   try {
     bulk_write(frame, 1000);
     (void)bulk_read(1000);
   } catch (const Acr122Error&) {
+    drain();
     // LED/buzzer APDUs still work without a card in the field.
+  }
+}
+
+void Acr122::recover() {
+  drain();
+  try {
+    icc_power_on();
+  } catch (const Acr122Error&) {
+  }
+  try {
+    (void)xfr({0xFF, 0x00, 0x51, 0xFF, 0x00}, 1000);
+  } catch (const Acr122Error&) {
+  }
+  try {
+    (void)xfr({0xFF, 0x00, 0x00, 0x00, 0x05, 0xD4, 0x14, 0x01, 0x00, 0x00}, 1000);
+  } catch (const Acr122Error&) {
+  }
+  try {
+    (void)xfr({0xFF, 0x00, 0x00, 0x00, 0x04, 0xD4, 0x32, 0x01, 0x01}, 1000);
+  } catch (const Acr122Error&) {
   }
 }
 
@@ -299,20 +335,25 @@ std::optional<std::vector<uint8_t>> Acr122::parse_inlist(const std::vector<uint8
   return std::vector<uint8_t>(data.begin() + i + 8, data.begin() + i + 8 + uid_len);
 }
 
-std::optional<std::vector<uint8_t>> Acr122::try_uid() {
+std::optional<std::vector<uint8_t>> Acr122::try_uid(bool reactivate) {
   try {
-    auto r = transmit({0xFF, 0xCA, 0x00, 0x00, 0x00}, 400);
+    if (reactivate) icc_power_on();
+    const int t_ms = reactivate ? 1000 : 400;
+    auto r = transmit({0xFF, 0xCA, 0x00, 0x00, 0x00}, t_ms);
     if (r.sw1 == 0x90 && r.data.size() >= 4) return r.data;
   } catch (const Acr122Error&) {
+    drain();
+    throw;
   }
   try {
-    icc_power_on();
-    auto r = transmit({0xFF, 0x00, 0x00, 0x00, 0x04, 0xD4, 0x4A, 0x01, 0x00}, 600);
+    auto r = transmit({0xFF, 0x00, 0x00, 0x00, 0x04, 0xD4, 0x4A, 0x01, 0x00}, 1500);
     if (r.sw1 == 0x90) {
       if (auto uid = parse_inlist(r.data)) return uid;
       if (r.data.size() >= 4 && r.data[0] != 0xD5) return r.data;
     }
   } catch (const Acr122Error&) {
+    drain();
+    throw;
   }
   return std::nullopt;
 }
@@ -324,8 +365,11 @@ std::vector<uint8_t> Acr122::wait_uid(std::chrono::milliseconds timeout) {
   set_led(Led::Green);
   while (forever || clock::now() < deadline) {
     if (auto uid = try_uid()) {
-      blink(Led::Yellow, Led::Yellow, std::chrono::milliseconds{150},
-            std::chrono::milliseconds{50}, 1, true);
+      try {
+        set_led(Led::Yellow);
+        beep(std::chrono::milliseconds{150}, 2);
+      } catch (const Acr122Error&) {
+      }
       return *uid;
     }
     std::this_thread::sleep_for(std::chrono::milliseconds{200});
@@ -353,11 +397,17 @@ void Acr122::set_led(Led led) {
             1000);
 }
 
-void Acr122::beep(std::chrono::milliseconds duration) {
+void Acr122::beep(std::chrono::milliseconds duration, int times) {
+  times = std::clamp(times, 1, 255);
   const uint8_t t1 = units_100ms(duration);
-  // Keep current LED; beep during T1. Number of repetition must be > 0.
-  const int timeout = static_cast<int>(duration.count()) + 1500;
-  (void)xfr({0xFF, 0x00, 0x40, 0x00, 0x04, t1, 0x00, 0x01, 0x01}, timeout);
+  // T2 is the gap between beeps; 0 for a single pulse.
+  const uint8_t t2 =
+      (times > 1) ? units_100ms(std::chrono::milliseconds{100}) : 0;
+  // Keep current LED; buzzer during T1. Number of repetition must be > 0.
+  const int timeout =
+      static_cast<int>((duration.count() + (times > 1 ? 100 : 0)) * times) + 1500;
+  (void)xfr({0xFF, 0x00, 0x40, 0x00, 0x04, t1, t2, static_cast<uint8_t>(times), 0x01},
+            timeout);
 }
 
 void Acr122::blink(Led blink_led, Led final, std::chrono::milliseconds on,

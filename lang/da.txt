@@ -1,0 +1,149 @@
+help_text<<<
+nfc — ACR122U NFC-tags og Steam-spil
+
+Brug:
+  nfc --help
+  nfc -h
+  nfc version
+  nfc menu                    interaktiv menu
+  nfc <kommando> [argumenter]
+
+Tags og spil:
+  nfc games                   auto-scan Steam-spil og shortcuts
+  nfc watch                   klar=grøn; tag på=gul+2 beep+start; tag af=1 beep+stop+grøn; stop=rød
+  nfc start <spil|appid>      start via Steam (spil + emu-genveje)
+  nfc start                   læs tag og start bundet spil
+  nfc stop [spil|appid]       stop kørende spil
+  nfc lock                    vis hvilket spil der er låst/kører
+  nfc add <spil|appid>        find spil, læs tag, bind dem
+  nfc read                    læs tag (UID + bundet spil)
+  nfc list                    vis gemte tags (tags.conf)
+  nfc remove <spil|uid>       fjern gemt tag
+  nfc remove                  læs tag og fjern det hvis det er gemt
+
+Sprog:
+  nfc sprog                   vis sprog og hvilket der er aktivt
+  nfc sprog <kode>            skift sprog og gem det
+  nfc lang                    samme som nfc sprog
+
+Læser:
+  nfc farver                  test rød/grøn/gul LED + beep
+  nfc led green|red|yellow|off
+  nfc beep [ms]               bip (standard 200)
+  nfc firmware                vis ACR122U-firmware
+  nfc udev                    vis udev-regel til ACR122U
+  nfc udev install            installér udev-regel (pkexec)
+  nfc install                 AppImage: ~/Applications, menu, autostart, udev
+
+Hjælp:
+  nfc --help, nfc -h          denne tekst
+  nfc menu                    interaktiv menu (tal-valg)
+  nfc help                    vis HELP.md på aktivt sprog
+  nfc version                 vis versionsnummer
+
+Filer:
+  ~/.config/nfc-games/tags.conf  gemte tags
+  ~/.config/nfc-games/nfc.conf   valgt sprog
+
+Eksempel:
+  nfc games
+  nfc add "BloodRayne 2"
+  nfc watch
+  nfc sprog de
+<<<
+help_missing=help-fil: HELP.md (ikke fundet)
+menu_text<<<
+nfc-games — menu
+  1  watch       klar=grøn; tag på=gul+2 beep+start; tag af=1 beep+stop+grøn
+  2  games       vis Steam-spil og shortcuts
+  3  start       start spil (navn/appid, eller tomt = læs tag)
+  4  stop        stop spil
+  5  lock        vis kørende/låst spil
+  6  add         bind tag til spil
+  7  read        læs tag
+  8  list        vis gemte tags
+  9  remove      fjern tag
+ 10  farver      test rød/grøn/gul LED + beep
+ 11  led         sæt LED
+ 12  beep        bip
+ 13  firmware    vis ACR122U-firmware
+ 14  udev        installér udev-regel
+ 15  sprog       vis eller skift sprog
+ 16  help        vis HELP.md
+ 17  version     vis versionsnummer
+  0  afslut
+<<<
+menu_prompt=Nummer: 
+menu_ask_game=spil eller appid: 
+menu_ask_remove=spil/uid (tomt = tag på læser): 
+menu_ask_led=LED (green/red/yellow/off): 
+menu_ask_lang=sprog (kode, tomt = vis): 
+menu_need_game=nfc: skriv et spilnavn eller appid
+menu_fail=nfc: handlingen fejlede
+menu_enter=Enter for at fortsætte...
+unknown_led=ukendt LED: 
+led_red=rød
+led_green=grøn
+led_yellow=gul (rød+grøn)
+led_not_listening=LED rød (lytter ikke)
+game=spil
+game_unknown=spil (ukendt)
+wait_tag=læg et tag på læseren...
+no_match=nfc: intet Steam-spil matcher 
+run_games=kør: nfc games
+multi_match=nfc: flere spil matcher, brug appid:
+watch_not_listening=watch  lytter ikke (rød)
+watch_ready=watch  klar (grøn)
+watch_listening_again=watch  lytter igen
+watch_switch_stop=watch  skifter tag, stopper 
+watch_unknown_tag=watch  ukendt tag 
+watch_tag_on=watch  tag på  
+watch_start_steam=watch  starter via Steam  
+watch_tag_off=watch  tag af
+watch_stopping=watch  stopper 
+watch_stopped=watch  stoppet (rød, lytter ikke)
+watch_already=watch kører allerede (pid 
+watch_paused=watch  USB fri til add/read
+usb_busy=nfc: USB optaget (prøv igen)
+tag_unbound=nfc: tagget er ikke bundet til et spil
+already_running=kører allerede 
+locked=nfc: spil er låst (appid 
+locked_suffix= kører). nfc stop først
+start_steam=starter via Steam  
+nothing_running_unlocked=intet spil kører (ikke låst)
+locked_line=låst  
+nothing_running=intet spil kører
+stopping=stopper 
+still_running=nfc: spillet kører stadig
+stopped=stoppet
+no_steam_games=ingen Steam-spil fundet
+games_count_suffix= spil
+no_tags=ingen tags i 
+saved=gemt 
+file=fil  
+not_saved=ikke gemt
+removed=fjernet 
+not_found=nfc: ikke fundet: 
+lang_active=aktiv
+lang_set=sprog sat til 
+lang_unknown=nfc: ukendt sprog. Vælg et af:
+lang_saved=gemt i 
+no_reader=Ingen ACR122U fundet (USB 072f:2200). Er læseren sat i?
+claim_fail=Kunne ikke claim USB-interface: 
+claim_hint= (kør med sudo eller installer udev-reglen)
+timeout_tag=timeout: intet tag
+ccid_short=CCID-svar for kort
+ccid_unexpected=Uventet CCID-svar
+ccid_trunc=CCID payload afkortet
+apdu_fail=APDU fejlede SW=
+empty_name=tomt navn
+uid_short=UID for kort
+cannot_write=kan ikke skrive 
+missing_appid=spil mangler appid
+steam_fork=kunne ikke starte Steam
+udev_missing=udev-regel ikke fundet
+udev_install=installér (én gang):
+udev_replug=træk USB ud og sæt i igen
+udev_ok=udev-regel installeret
+udev_fail=nfc: kunne ikke installere udev-regel
+udev_helper_missing=nfc: udev-installer mangler i AppImage

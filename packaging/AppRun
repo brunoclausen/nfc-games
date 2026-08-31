@@ -1,4 +1,5 @@
 #!/bin/sh
+# AppImage entry: install to ~/Applications, menu, autostart, udev, then run nfc.
 set -e
 HERE="$(dirname "$(readlink -f "$0")")"
 export NFC_SHARE="${NFC_SHARE:-$HERE/usr/share/nfc-games}"
@@ -18,31 +19,239 @@ if [ -d "$HERE/usr/lib" ]; then
 fi
 export PATH="$HERE/usr/bin:${PATH:-/usr/bin}"
 
+NFC_DA=1
+if [ "${NFC_LANG:-}" = "en" ]; then NFC_DA=0; fi
+if [ -f "$CONF/nfc.conf" ]; then
+  if grep -q '^lang=en' "$CONF/nfc.conf" 2>/dev/null; then NFC_DA=0; fi
+  if grep -q '^lang=da' "$CONF/nfc.conf" 2>/dev/null; then NFC_DA=1; fi
+fi
+
+nfc_msg() {
+  if [ "$NFC_DA" = 1 ]; then
+    printf 'nfc: %s\n' "$1"
+  else
+    printf 'nfc: %s\n' "$2"
+  fi
+}
+
+abspath() {
+  readlink -f "$1" 2>/dev/null || printf '%s\n' "$1"
+}
+
+quote_exec() {
+  case "$1" in
+    *[!A-Za-z0-9_./:+-]*) printf '"%s"' "$1" ;;
+    *) printf '%s' "$1" ;;
+  esac
+}
+
+INSTALL_DIR="$HOME/Applications"
+INSTALL_NAME="nfc-games-x86_64.AppImage"
+INSTALL_PATH="$HOME/Applications/nfc-games-x86_64.AppImage"
+DATA="${XDG_DATA_HOME:-$HOME/.local/share}"
+ICON_DST="$DATA/icons/hicolor/256x256/apps/nfc-games.png"
+DESKTOP_DST="$DATA/applications/nfc-games.desktop"
+AUTOSTART_DST="${XDG_CONFIG_HOME:-$HOME/.config}/autostart/nfc-games.desktop"
+UNIT_DST="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user/nfc-games.service"
+BIN="$HERE/usr/bin/nfc"
+EXTRA_ARGS="watch"
+
+write_desktop() {
+  dest="$1"
+  terminal="$2"
+  skip="$3"
+  run_arg="$4"
+  exec_line="$(quote_exec "$BIN")"
+  if [ "$skip" = 1 ]; then
+    exec_line="/usr/bin/env NFC_SKIP_INSTALL=1 $exec_line"
+  fi
+  if [ -n "$run_arg" ]; then
+    exec_line="$exec_line $run_arg"
+  fi
+  mkdir -p "$(dirname "$dest")"
+  {
+    cat << EOF
+[Desktop Entry]
+Type=Application
+Name=NFC Games
+Comment=ACR122U NFC tags and Steam games
+Exec=$exec_line
+Icon=nfc-games
+Terminal=$terminal
+Categories=Game;
+Keywords=nfc;steam;acr122u;tag;
+StartupNotify=false
+X-AppImage-Integrate=false
+X-GNOME-Autostart-enabled=true
+EOF
+    if [ "$skip" != 1 ]; then
+      q="$(quote_exec "$BIN")"
+      cat << EOF
+Actions=Watch;Menu;Games;List;UdevInstall;
+
+[Desktop Action Watch]
+Name=Watch
+Name[da]=Watch (lyt)
+Exec=$q watch
+
+[Desktop Action Menu]
+Name=Menu
+Exec=$q menu
+
+[Desktop Action Games]
+Name=List games
+Name[da]=Vis spil
+Exec=$q games
+
+[Desktop Action List]
+Name=List tags
+Name[da]=Vis tags
+Exec=$q list
+
+[Desktop Action UdevInstall]
+Name=Install ACR122U udev rule
+Name[da]=Installér udev-regel
+Exec=$q udev install
+EOF
+    fi
+  } > "$dest"
+}
+
+copy_icon() {
+  mkdir -p "$(dirname "$ICON_DST")"
+  for ic in "$HERE/nfc-games.png" \
+            "$HERE/usr/share/icons/hicolor/256x256/apps/nfc-games.png" \
+            "$HERE/usr/share/pixmaps/nfc-games.png"; do
+    if [ -f "$ic" ]; then
+      cp -f "$ic" "$ICON_DST"
+      return 0
+    fi
+  done
+  return 0
+}
+
 install_udev_if_needed() {
   [ "${NFC_SKIP_UDEV:-}" = "1" ] && return 0
   [ -f /etc/udev/rules.d/99-acr122u.rules ] && return 0
-  RULE="$NFC_SHARE/udev/99-acr122u.rules"
-  HELPER="$NFC_SHARE/udev/install-udev.sh"
-  [ -f "$RULE" ] && [ -x "$HELPER" ] || return 0
-  echo "nfc: installerer ACR122U udev-regel (engang på denne PC)..."
+  RULE_SRC="$NFC_SHARE/udev/99-acr122u.rules"
+  HELPER_SRC="$NFC_SHARE/udev/install-udev.sh"
+  [ -f "$RULE_SRC" ] && [ -f "$HELPER_SRC" ] || return 0
+
+  UDEV_DIR="$CONF/udev"
+  mkdir -p "$UDEV_DIR"
+  RULE="$UDEV_DIR/99-acr122u.rules"
+  HELPER="$UDEV_DIR/install-udev.sh"
+  cp -f "$RULE_SRC" "$RULE"
+  cp -f "$HELPER_SRC" "$HELPER"
+  chmod 755 "$HELPER"
+
+  nfc_msg "installerer ACR122U udev-regel (engang på denne PC)..." \
+          "installing ACR122U udev rule (once on this PC)..."
   if [ "$(id -u)" = "0" ]; then
     "$HELPER" "$RULE" || true
   elif command -v pkexec >/dev/null 2>&1; then
     pkexec "$HELPER" "$RULE" || true
   else
-    echo "nfc: kør: $HERE/usr/bin/nfc udev install" >&2
+    nfc_msg "kør: $(quote_exec "$BIN") udev install" \
+            "run: $(quote_exec "$BIN") udev install" >&2
+  fi
+}
+
+self_install() {
+  extra="watch"
+  mkdir -p "$INSTALL_DIR"
+  if [ -n "${APPIMAGE:-}" ]; then
+    src="$(abspath "$APPIMAGE")"
+    dst="$(abspath "$INSTALL_PATH")"
+    if [ "$src" != "$dst" ] || [ ! -x "$INSTALL_PATH" ]; then
+      if [ ! -f "$INSTALL_PATH" ] || ! cmp -s "$APPIMAGE" "$INSTALL_PATH"; then
+        tmp="$INSTALL_PATH.$$"
+        cp -f "$APPIMAGE" "$tmp"
+        chmod +x "$tmp"
+        mv -f "$tmp" "$INSTALL_PATH"
+        COPIED=1
+      fi
+    fi
+    if [ -x "$INSTALL_PATH" ]; then
+      BIN="$INSTALL_PATH"
+    else
+      BIN="$APPIMAGE"
+    fi
+  fi
+
+  copy_icon
+  write_desktop "$DESKTOP_DST" true 0 "menu"
+  # One login starter only: systemd user unit. Drop leftover XDG autostart.
+  rm -f "$AUTOSTART_DST"
+
+  mkdir -p "$(dirname "$UNIT_DST")"
+  exec_q="$(quote_exec "$BIN")"
+  # Always watch at login — never the interactive menu.
+  start_cmd="$exec_q watch"
+  cat > "$UNIT_DST" << EOF
+[Unit]
+Description=NFC Games ACR122U
+After=graphical-session.target
+
+[Service]
+Type=simple
+Environment=NFC_SKIP_INSTALL=1
+ExecStart=$start_cmd
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target
+EOF
+  if command -v systemctl >/dev/null 2>&1; then
+    systemctl --user daemon-reload >/dev/null 2>&1 || true
+    systemctl --user enable nfc-games.service >/dev/null 2>&1 || true
+  fi
+  if command -v update-desktop-database >/dev/null 2>&1; then
+    update-desktop-database "$DATA/applications" >/dev/null 2>&1 || true
+  fi
+
+  reexec=0
+  if [ -n "${APPIMAGE:-}" ] && [ -x "$INSTALL_PATH" ]; then
+    now="$(abspath "$INSTALL_PATH")"
+    cur="$(abspath "$APPIMAGE")"
+    if [ "$now" != "$cur" ]; then
+      reexec=1
+    fi
+  fi
+  if [ "$reexec" != 1 ]; then
+    if [ "${COPIED:-0}" = 1 ] || [ "${1:-}" = "install" ]; then
+      nfc_msg "installeret til $BIN" "installed to $BIN"
+      nfc_msg "startes automatisk ved login" "starts automatically at login"
+    fi
+  fi
+  if [ "$reexec" = 1 ]; then
+    exec "$INSTALL_PATH" "$@"
   fi
 }
 
 # Skip AppImage runtime flags (extract, mount, ...).
 case "${1:-}" in
   --appimage-*) ;;
-  *) install_udev_if_needed ;;
+  *)
+    if [ "${1:-}" = "install" ] || [ "${NFC_SKIP_INSTALL:-}" != "1" ]; then
+      COPIED=0
+      self_install "$@" || true
+      install_udev_if_needed || true
+    fi
+    ;;
 esac
 
-# Double-click / no args: set up reader, then watch.
+if [ "${1:-}" = "install" ]; then
+  if [ -f /etc/udev/rules.d/99-acr122u.rules ]; then
+    nfc_msg "udev-regel er installeret" "udev rule is installed"
+  fi
+  exit 0
+fi
+
+# No args: interactive menu. Login/autostart passes "watch".
 if [ $# -eq 0 ]; then
-  exec "$HERE/usr/bin/nfc" watch
+  exec "$HERE/usr/bin/nfc" menu
 fi
 
 exec "$HERE/usr/bin/nfc" "$@"

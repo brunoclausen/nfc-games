@@ -1,0 +1,143 @@
+help_text<<<
+nfc — ACR122U-NFC-Tags und Steam-Spiele
+
+Verwendung:
+  nfc --help
+  nfc -h
+  nfc version
+  nfc menu                    interaktives Menü
+  nfc <befehl> [argumente]
+
+Tags und Spiele:
+  nfc games                   Steam-Spiele und Shortcuts scannen
+  nfc watch                   bereit=grün; Tag auf=gelb+2 Pieps+Start; Tag ab=1 Pieps+Stop+grün; Stop=rot
+  nfc start <spiel|appid>     über Steam starten
+  nfc start                   Tag lesen und gebundenes Spiel starten
+  nfc stop [spiel|appid]      laufendes Spiel beenden
+  nfc lock                    gesperrtes/laufendes Spiel anzeigen
+  nfc add <spiel|appid>       Spiel finden, Tag lesen, binden
+  nfc read                    Tag lesen (UID + Spiel)
+  nfc list                    gespeicherte Tags
+  nfc remove <spiel|uid>      Tag entfernen
+  nfc remove                  Tag lesen und entfernen
+
+Sprache:
+  nfc lang                    Sprachen auflisten
+  nfc lang <code>             Sprache wechseln und speichern
+  nfc sprog                   wie nfc lang
+
+Leser:
+  nfc farver                  LED rot/grün/gelb + Piep testen
+  nfc led green|red|yellow|off
+  nfc beep [ms]               Piep (Standard 200)
+  nfc firmware                ACR122U-Firmware
+  nfc udev                    udev-Regel anzeigen
+  nfc udev install            udev-Regel installieren (pkexec)
+  nfc install                 AppImage: ~/Applications, Menü, Autostart, udev
+
+Hilfe:
+  nfc --help, nfc -h          dieser Text
+  nfc menu                    interaktives Menü
+  nfc help                    HELP.md in der aktiven Sprache
+  nfc version                 Versionsnummer
+
+Dateien:
+  ~/.config/nfc-games/tags.conf  gespeicherte Tags
+  ~/.config/nfc-games/nfc.conf   gewählte Sprache
+<<<
+help_missing=Hilfe-Datei: HELP.md (nicht gefunden)
+menu_text<<<
+nfc-games — Menü
+  1  watch       bereit=grün; Tag auf=gelb+2 Pieps+Start; Tag ab=1 Pieps+Stop+grün
+  2  games       Steam-Spiele und Shortcuts
+  3  start       Spiel starten (Name/appid, leer = Tag lesen)
+  4  stop        Spiel beenden
+  5  lock        laufendes/gesperrtes Spiel
+  6  add         Tag an Spiel binden
+  7  read        Tag lesen
+  8  list        gespeicherte Tags
+  9  remove      Tag entfernen
+ 10  farver      LED rot/grün/gelb + Piep
+ 11  led         LED setzen
+ 12  beep        Piep
+ 13  firmware    ACR122U-Firmware
+ 14  udev        udev-Regel installieren
+ 15  lang        Sprache anzeigen oder wechseln
+ 16  help        HELP.md
+ 17  version     Version
+  0  beenden
+<<<
+menu_prompt=Nummer: 
+menu_ask_game=Spiel oder appid: 
+menu_ask_remove=Spiel/uid (leer = Tag auf Leser): 
+menu_ask_led=LED (green/red/yellow/off): 
+menu_ask_lang=Sprache (Code, leer = Liste): 
+menu_need_game=nfc: Spielname oder appid eingeben
+menu_fail=nfc: Aktion fehlgeschlagen
+menu_enter=Enter zum Fortfahren...
+unknown_led=unbekannte LED: 
+led_red=rot
+led_green=grün
+led_yellow=gelb (rot+grün)
+led_not_listening=LED rot (hört nicht)
+game=Spiel
+game_unknown=Spiel (unbekannt)
+wait_tag=Tag auf den Leser legen...
+no_match=nfc: kein Steam-Spiel passt zu 
+run_games=ausführen: nfc games
+multi_match=nfc: mehrere Spiele passen, appid verwenden:
+watch_not_listening=watch  hört nicht (rot)
+watch_ready=watch  bereit (grün)
+watch_listening_again=watch  hört wieder
+watch_switch_stop=watch  wechselt Tag, stoppt 
+watch_unknown_tag=watch  unbekanntes Tag 
+watch_tag_on=watch  Tag auf  
+watch_start_steam=watch  startet über Steam  
+watch_tag_off=watch  Tag ab
+watch_stopping=watch  stoppt 
+watch_stopped=watch  gestoppt (rot, hört nicht)
+watch_already=watch läuft bereits (pid 
+watch_paused=watch  USB frei für add/read
+usb_busy=nfc: USB belegt (erneut versuchen)
+tag_unbound=nfc: Tag ist an kein Spiel gebunden
+already_running=läuft bereits 
+locked=nfc: Spiel gesperrt (appid 
+locked_suffix= läuft). zuerst nfc stop
+start_steam=startet über Steam  
+nothing_running_unlocked=kein Spiel läuft (nicht gesperrt)
+locked_line=gesperrt  
+nothing_running=kein Spiel läuft
+stopping=stoppt 
+still_running=nfc: Spiel läuft noch
+stopped=gestoppt
+no_steam_games=keine Steam-Spiele gefunden
+games_count_suffix= Spiele
+no_tags=keine Tags in 
+saved=gespeichert 
+file=Datei  
+not_saved=nicht gespeichert
+removed=entfernt 
+not_found=nfc: nicht gefunden: 
+lang_active=aktiv
+lang_set=Sprache gesetzt auf 
+lang_unknown=nfc: unbekannte Sprache. Wähle eine von:
+lang_saved=gespeichert in 
+no_reader=Kein ACR122U gefunden (USB 072f:2200). Ist der Leser angeschlossen?
+claim_fail=USB-Interface konnte nicht beansprucht werden: 
+claim_hint= (mit sudo ausführen oder udev-Regel installieren)
+timeout_tag=Timeout: kein Tag
+ccid_short=CCID-Antwort zu kurz
+ccid_unexpected=Unerwartete CCID-Antwort
+ccid_trunc=CCID-Payload abgeschnitten
+apdu_fail=APDU fehlgeschlagen SW=
+empty_name=leerer Name
+uid_short=UID zu kurz
+cannot_write=kann nicht schreiben 
+missing_appid=Spiel hat keine appid
+steam_fork=Steam konnte nicht gestartet werden
+udev_missing=udev-Regel nicht gefunden
+udev_install=einmal installieren:
+udev_replug=USB abziehen und wieder einstecken
+udev_ok=udev-Regel installiert
+udev_fail=nfc: udev-Regel konnte nicht installiert werden
+udev_helper_missing=nfc: udev-Installer fehlt im AppImage

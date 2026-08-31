@@ -11,7 +11,9 @@ ARCH="${ARCH:-x86_64}"
 VERSION="${VERSION:-}"
 
 if [[ -z "$VERSION" ]]; then
-  if git -C "$ROOT" describe --tags --always --dirty >/dev/null 2>&1; then
+  if [[ -f "$ROOT/VERSION" ]]; then
+    VERSION="$(tr -d '[:space:]' < "$ROOT/VERSION")"
+  elif git -C "$ROOT" describe --tags --always --dirty >/dev/null 2>&1; then
     VERSION="$(git -C "$ROOT" describe --tags --always --dirty)"
   else
     VERSION="dev"
@@ -27,7 +29,9 @@ if [[ ! -f "$ROOT/packaging/nfc-games.png" ]]; then
   magick -background none "$ROOT/packaging/nfc-games.svg" -resize 256x256 -depth 8 PNG32:"$ROOT/packaging/nfc-games.png"
 fi
 
-export PKG_CONFIG_PATH="/home/linuxbrew/.linuxbrew/lib/pkgconfig:${PKG_CONFIG_PATH:-}"
+if [[ -d /home/linuxbrew/.linuxbrew/lib/pkgconfig ]]; then
+  export PKG_CONFIG_PATH="/home/linuxbrew/.linuxbrew/lib/pkgconfig:${PKG_CONFIG_PATH:-}"
+fi
 cmake -S "$ROOT" -B "$BUILD" \
   -DCMAKE_BUILD_TYPE=Release \
   -DNFC_APPIMAGE=ON
@@ -53,7 +57,11 @@ fi
 
 export APPIMAGE_EXTRACT_AND_RUN=1
 export LINUXDEPLOY_OUTPUT_VERSION="$VERSION"
-export LDAI_OUTPUT="$DIST/nfc-games-${ARCH}.AppImage"
+# Write to a temp name so a running AppImage (ETXTBSY) can be replaced via mv.
+OUT="$DIST/nfc-games-${ARCH}.AppImage"
+TMP_OUT="$DIST/.nfc-games-${ARCH}.AppImage.build"
+rm -f "$TMP_OUT"
+export LDAI_OUTPUT="$TMP_OUT"
 # Keep glibc/libstdc++ on the host; bundle libusb.
 export LINUXDEPLOY_OUTPUT_APP_NAME="nfc-games"
 
@@ -68,14 +76,44 @@ cd "$DIST"
   --output appimage
 
 # linuxdeploy names the file from the desktop Name= field; normalize.
-if [[ ! -f "$DIST/nfc-games-${ARCH}.AppImage" ]]; then
-  found="$(ls -1 "$DIST"/*-"${ARCH}".AppImage 2>/dev/null | head -1 || true)"
-  if [[ -n "$found" ]]; then
-    mv "$found" "$DIST/nfc-games-${ARCH}.AppImage"
+if [[ ! -f "$TMP_OUT" ]]; then
+  found="$(ls -1 "$DIST"/*-"${ARCH}".AppImage 2>/dev/null | grep -v "\.build$" | head -1 || true)"
+  if [[ -n "$found" && "$found" != "$OUT" ]]; then
+    mv "$found" "$TMP_OUT"
   fi
 fi
+if [[ ! -f "$TMP_OUT" ]]; then
+  echo "nfc: AppImage was not created" >&2
+  exit 1
+fi
+mv -f "$TMP_OUT" "$OUT"
 
-chmod +x "$DIST/nfc-games-${ARCH}.AppImage"
-echo "AppImage: $DIST/nfc-games-${ARCH}.AppImage"
-file "$DIST/nfc-games-${ARCH}.AppImage"
-ls -lh "$DIST/nfc-games-${ARCH}.AppImage"
+chmod +x "$OUT"
+echo "AppImage: $OUT"
+file "$OUT"
+ls -lh "$OUT"
+
+if [[ "${NFC_AUTO_INSTALL:-1}" != "0" ]]; then
+  echo "Installing AppImage (menu, autostart, udev)..."
+  "$OUT" install || echo "nfc: auto-install skipped (run the AppImage once)" >&2
+
+  installed="$HOME/Applications/nfc-games-x86_64.AppImage"
+  pidfile="${XDG_CONFIG_HOME:-$HOME/.config}/nfc-games/watch.pid"
+  if [[ -f "$pidfile" ]]; then
+    old="$(tr -d '[:space:]' < "$pidfile" || true)"
+    if [[ -n "$old" ]] && kill -0 "$old" 2>/dev/null; then
+      echo "Restarting watch..."
+      kill "$old" 2>/dev/null || true
+      for _ in 1 2 3 4 5 6 7 8 9 10; do
+        kill -0 "$old" 2>/dev/null || break
+        sleep 0.2
+      done
+    fi
+  fi
+  if command -v systemctl >/dev/null 2>&1 && [[ -x "$installed" ]]; then
+    systemctl --user restart nfc-games.service >/dev/null 2>&1 || \
+      env NFC_SKIP_INSTALL=1 "$installed" watch >/dev/null 2>&1 &
+  elif [[ -x "$installed" ]]; then
+    env NFC_SKIP_INSTALL=1 "$installed" watch >/dev/null 2>&1 &
+  fi
+fi

@@ -1,0 +1,7 @@
+# code native-name
+da Dansk
+en English
+de Deutsch
+sv Svenska
+nb Norsk
+fr Français

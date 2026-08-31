@@ -21,7 +21,13 @@ void check(bool ok, const char* msg) {
   }
 }
 
+#ifndef NFC_VERSION
+#define NFC_VERSION "dev"
+#endif
+
 int main() {
+  check(std::string(NFC_VERSION).find('.') != std::string::npos, "version looks like x.y.z");
+
   SteamGame sh;
   sh.appid = 3640596865u;
   sh.kind = "shortcut";
@@ -68,12 +74,32 @@ int main() {
   }
 
   ::setenv("XDG_CONFIG_HOME", tmp.c_str(), 1);
-  ::unsetenv("NFC_LANG");
+  ::setenv("NFC_LANG", "da", 1);
   i18n_init();
   check(std::string(t("wait_tag")).find("læg") != std::string::npos, "danish wait_tag");
   check(set_lang("en"), "set_lang en");
   check(std::string(t("wait_tag")).find("place") != std::string::npos, "english wait_tag");
+  check(std::string(t("watch_already")).find("already") != std::string::npos, "english watch_already");
   check(set_lang("da"), "set_lang da");
+  check(std::string(t("watch_already")).find("kører") != std::string::npos, "danish watch_already");
+  check(std::string(t("menu_text")).find("watch") != std::string::npos, "danish menu_text");
+  check(set_lang("en"), "set_lang en again");
+  check(std::string(t("menu_text")).find("ready") != std::string::npos, "english menu_text");
+  check(set_lang("de"), "set_lang de");
+  check(std::string(t("wait_tag")).find("Tag") != std::string::npos, "german wait_tag");
+  check(set_lang("sv"), "set_lang sv");
+  check(std::string(t("wait_tag")).find("tagg") != std::string::npos, "swedish wait_tag");
+  check(set_lang("nb"), "set_lang nb");
+  check(std::string(t("wait_tag")).find("brikke") != std::string::npos, "norwegian wait_tag");
+  check(set_lang("nn"), "set_lang nn alias");
+  check(current_lang_code() == "nb", "nn maps to nb");
+  check(set_lang("no_NO.UTF-8"), "set_lang no_NO.UTF-8");
+  check(current_lang_code() == "nb", "no_NO maps to nb");
+  check(set_lang("fr"), "set_lang fr");
+  check(std::string(t("wait_tag")).find("tag") != std::string::npos, "french wait_tag");
+  check(languages().size() >= 6, "six languages listed");
+  check(set_lang("da"), "set_lang da again");
+  check(!set_lang("xx"), "unknown language rejected");
 
   std::error_code ec;
   fs::remove_all(tmp, ec);

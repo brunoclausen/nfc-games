@@ -1,0 +1,139 @@
+help_text<<<
+nfc — ACR122U NFC-brikker og Steam-spill
+
+Bruk:
+  nfc --help
+  nfc -h
+  nfc version
+  nfc menu                    interaktiv meny
+  nfc <kommando> [argumenter]
+
+Brikker og spill:
+  nfc games                   skann Steam-spill og snarveier
+  nfc watch                   klar=grønn; brikke på=gul+2 pip+start; brikke av=1 pip+stopp+grønn; stopp=rød
+  nfc start <spill|appid>     start via Steam
+  nfc start                   les brikke og start bundet spill
+  nfc stop [spill|appid]      stopp spill
+  nfc lock                    vis låst/kjørende spill
+  nfc add <spill|appid>       finn spill, les brikke, bind
+  nfc read                    les brikke (UID + spill)
+  nfc list                    lagrede brikker
+  nfc remove <spill|uid>      fjern brikke
+  nfc remove                  les brikke og fjern
+
+Språk:
+  nfc lang                    list språk
+  nfc lang <kode>             bytt språk og lagre
+  nfc sprog                   samme som nfc lang
+
+Leser:
+  nfc farver                  test rød/grønn/gul LED + pip
+  nfc led green|red|yellow|off
+  nfc beep [ms]               pip (standard 200)
+  nfc firmware                ACR122U-firmware
+  nfc udev                    vis udev-regel
+  nfc udev install            installer udev-regel (pkexec)
+  nfc install                 AppImage: ~/Applications, meny, autostart, udev
+
+Hjelp:
+  nfc --help, nfc -h          denne teksten
+  nfc menu                    interaktiv meny
+  nfc help                    HELP.md på aktivt språk
+  nfc version                 versjonsnummer
+<<<
+help_missing=hjelpfil: HELP.md (ikke funnet)
+menu_text<<<
+nfc-games — meny
+  1  watch       klar=grønn; brikke på=gul+2 pip+start; brikke av=1 pip+stopp+grønn
+  2  games       Steam-spill og snarveier
+  3  start       start spill (navn/appid, tomt = les brikke)
+  4  stop        stopp spill
+  5  lock        kjørende/låst spill
+  6  add         bind brikke til spill
+  7  read        les brikke
+  8  list        lagrede brikker
+  9  remove      fjern brikke
+ 10  farver      test LED rød/grønn/gul + pip
+ 11  led         sett LED
+ 12  beep        pip
+ 13  firmware    ACR122U-firmware
+ 14  udev        installer udev-regel
+ 15  lang        vis eller bytt språk
+ 16  help        HELP.md
+ 17  version     versjon
+  0  avslutt
+<<<
+menu_prompt=Nummer: 
+menu_ask_game=spill eller appid: 
+menu_ask_remove=spill/uid (tomt = brikke på leser): 
+menu_ask_led=LED (green/red/yellow/off): 
+menu_ask_lang=språk (kode, tomt = vis): 
+menu_need_game=nfc: skriv spillnavn eller appid
+menu_fail=nfc: handlingen feilet
+menu_enter=Enter for å fortsette...
+unknown_led=ukjent LED: 
+led_red=rød
+led_green=grønn
+led_yellow=gul (rød+grønn)
+led_not_listening=LED rød (lytter ikke)
+game=spill
+game_unknown=spill (ukjent)
+wait_tag=legg en brikke på leseren...
+no_match=nfc: ingen Steam-spill matcher 
+run_games=kjør: nfc games
+multi_match=nfc: flere spill matcher, bruk appid:
+watch_not_listening=watch  lytter ikke (rød)
+watch_ready=watch  klar (grønn)
+watch_listening_again=watch  lytter igjen
+watch_switch_stop=watch  bytter brikke, stopper 
+watch_unknown_tag=watch  ukjent brikke 
+watch_tag_on=watch  brikke på  
+watch_start_steam=watch  starter via Steam  
+watch_tag_off=watch  brikke av
+watch_stopping=watch  stopper 
+watch_stopped=watch  stoppet (rød, lytter ikke)
+watch_already=watch kjører allerede (pid 
+watch_paused=watch  USB ledig for add/read
+usb_busy=nfc: USB opptatt (prøv igjen)
+tag_unbound=nfc: brikken er ikke bundet til et spill
+already_running=kjører allerede 
+locked=nfc: spillet er låst (appid 
+locked_suffix= kjører). nfc stop først
+start_steam=starter via Steam  
+nothing_running_unlocked=ingen spill kjører (ikke låst)
+locked_line=låst  
+nothing_running=ingen spill kjører
+stopping=stopper 
+still_running=nfc: spillet kjører fortsatt
+stopped=stoppet
+no_steam_games=ingen Steam-spill funnet
+games_count_suffix= spill
+no_tags=ingen brikker i 
+saved=lagret 
+file=fil  
+not_saved=ikke lagret
+removed=fjernet 
+not_found=nfc: ikke funnet: 
+lang_active=aktiv
+lang_set=språk satt til 
+lang_unknown=nfc: ukjent språk. Velg et av:
+lang_saved=lagret i 
+no_reader=Ingen ACR122U funnet (USB 072f:2200). Er leseren satt i?
+claim_fail=Kunne ikke ta USB-grensesnittet: 
+claim_hint= (kjør med sudo eller installer udev-regelen)
+timeout_tag=timeout: ingen brikke
+ccid_short=CCID-svar for kort
+ccid_unexpected=Uventet CCID-svar
+ccid_trunc=CCID-nyttelast avkortet
+apdu_fail=APDU feilet SW=
+empty_name=tomt navn
+uid_short=UID for kort
+cannot_write=kan ikke skrive 
+missing_appid=spillet mangler appid
+steam_fork=kunne ikke starte Steam
+udev_missing=udev-regel ikke funnet
+udev_install=installer (én gang):
+udev_replug=trekk ut USB og sett i igjen
+udev_ok=udev-regel installert
+udev_fail=nfc: kunne ikke installere udev-regel
+udev_helper_missing=nfc: udev-installer mangler i AppImage
