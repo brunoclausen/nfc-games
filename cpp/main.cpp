@@ -5,10 +5,12 @@
 
 #include <chrono>
 #include <csignal>
+#include <cerrno>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <optional>
 #include <string>
 #include <sys/types.h>
 #include <sys/wait.h>
@@ -135,6 +137,54 @@ std::chrono::milliseconds wait_timeout() {
   return 0ms;
 }
 
+std::filesystem::path usb_pause_path() { return nfc_config_dir() / "usb.pause"; }
+std::filesystem::path watch_pid_path() { return nfc_config_dir() / "watch.pid"; }
+
+bool usb_pause_requested() {
+  std::ifstream in(usb_pause_path());
+  if (!in) return false;
+  int pid = 0;
+  in >> pid;
+  if (pid <= 0) return true;
+  if (::kill(pid, 0) != 0 && errno == ESRCH) {
+    std::error_code ec;
+    std::filesystem::remove(usb_pause_path(), ec);
+    return false;
+  }
+  return true;
+}
+
+struct UsbPause {
+  UsbPause() {
+    std::error_code ec;
+    std::filesystem::create_directories(nfc_config_dir(), ec);
+    std::ofstream out(usb_pause_path());
+    out << ::getpid() << "\n";
+  }
+  ~UsbPause() {
+    std::error_code ec;
+    std::filesystem::remove(usb_pause_path(), ec);
+  }
+  UsbPause(const UsbPause&) = delete;
+  UsbPause& operator=(const UsbPause&) = delete;
+};
+
+Acr122 open_reader() {
+  std::string last = "busy";
+  for (int i = 0; i < 50; ++i) {
+    try {
+      return Acr122::open();
+    } catch (const Acr122Error& e) {
+      last = e.what();
+      if (last.find("busy") == std::string::npos && last.find("Busy") == std::string::npos) {
+        throw;
+      }
+      std::this_thread::sleep_for(200ms);
+    }
+  }
+  throw Acr122Error(std::string(t("usb_busy")) + " (" + last + ")");
+}
+
 Acr122::Led parse_led(const std::string& name) {
   if (name == "green" || name == "gron" || name == "grøn") return Acr122::Led::Green;
   if (name == "red" || name == "rod" || name == "rød") return Acr122::Led::Red;
@@ -206,9 +256,21 @@ int resolve_game(const std::string& query, SteamGame& out) {
 int cmd_watch() {
   std::signal(SIGINT, watch_signal);
   std::signal(SIGTERM, watch_signal);
-  auto reader = Acr122::open();
-  led_not_listening(reader);
-  std::cout << "watch  firmware " << reader.firmware() << "\n" << std::flush;
+  std::error_code ec;
+  std::filesystem::create_directories(nfc_config_dir(), ec);
+  {
+    std::ofstream pidf(watch_pid_path());
+    pidf << ::getpid() << "\n";
+  }
+  std::optional<Acr122> reader;
+  try {
+    reader = Acr122::open();
+  } catch (const Acr122Error& e) {
+    std::filesystem::remove(watch_pid_path(), ec);
+    throw;
+  }
+  led_not_listening(*reader);
+  std::cout << "watch  firmware " << reader->firmware() << "\n" << std::flush;
 
   std::string active_uid;
   std::uint32_t active_appid = 0;
@@ -218,10 +280,32 @@ int cmd_watch() {
   bool deaf = true;
 
   while (g_watch_run) {
+    if (usb_pause_requested()) {
+      if (reader) {
+        led_not_listening(*reader);
+        reader.reset();
+        deaf = true;
+        present = 0;
+        std::cout << t("watch_paused") << "\n" << std::flush;
+      }
+      std::this_thread::sleep_for(200ms);
+      continue;
+    }
+    if (!reader) {
+      try {
+        reader = Acr122::open();
+        deaf = true;
+        errors = 0;
+      } catch (const Acr122Error&) {
+        std::this_thread::sleep_for(250ms);
+        continue;
+      }
+    }
+
     std::optional<std::vector<std::uint8_t>> uid;
     bool poll_ok = true;
     try {
-      uid = reader.try_uid();
+      uid = reader->try_uid();
     } catch (const Acr122Error&) {
       uid.reset();
       poll_ok = false;
@@ -233,7 +317,7 @@ int cmd_watch() {
       if (errors >= 3 && !deaf) {
         deaf = true;
         std::cout << t("watch_not_listening") << "\n" << std::flush;
-        led_not_listening(reader);
+        led_not_listening(*reader);
       }
       std::this_thread::sleep_for(250ms);
       continue;
@@ -242,10 +326,10 @@ int cmd_watch() {
       deaf = false;
       errors = 0;
       if (active_uid.empty() && !uid) {
-        set_led_safe(reader, Acr122::Led::Green);
+        set_led_safe(*reader, Acr122::Led::Green);
         std::cout << t("watch_ready") << "\n" << std::flush;
       } else {
-        set_led_safe(reader, Acr122::Led::Yellow);
+        set_led_safe(*reader, Acr122::Led::Yellow);
         std::cout << t("watch_listening_again") << "\n" << std::flush;
       }
     }
@@ -266,12 +350,12 @@ int cmd_watch() {
         active_uid = hex;
         if (!known || known->appid == 0) {
           std::cout << t("watch_unknown_tag") << hex << "\n" << std::flush;
-          set_led_safe(reader, Acr122::Led::Red);
+          set_led_safe(*reader, Acr122::Led::Red);
         } else {
           std::cout << t("watch_tag_on") << hex << "  " << known->name << "\n" << std::flush;
-          set_led_safe(reader, Acr122::Led::Yellow);
+          set_led_safe(*reader, Acr122::Led::Yellow);
           try {
-            reader.beep(200ms);
+            reader->beep(200ms);
           } catch (const Acr122Error&) {
           }
           SteamGame game;
@@ -304,7 +388,7 @@ int cmd_watch() {
         }
         active_uid.clear();
         active_appid = 0;
-        set_led_safe(reader, Acr122::Led::Green);
+        set_led_safe(*reader, Acr122::Led::Green);
         std::cout << t("watch_ready") << "\n" << std::flush;
       }
     }
@@ -315,7 +399,8 @@ int cmd_watch() {
     std::cout << t("watch_stopping") << active_appid << "\n" << std::flush;
     SteamLibrary::stop(active_appid);
   }
-  led_not_listening(reader);
+  if (reader) led_not_listening(*reader);
+  std::filesystem::remove(watch_pid_path(), ec);
   std::cout << t("watch_stopped") << "\n";
   return 0;
 }
@@ -324,7 +409,8 @@ int cmd_start(const std::string& query) {
   SteamGame game;
   if (query.empty()) {
     auto store = TagStore::load(TagStore::default_path());
-    auto reader = Acr122::open();
+    UsbPause pause;
+    auto reader = open_reader();
     auto uid = wait_for_tag(reader);
     const std::string hex = Acr122::uid_hex(uid);
     auto known = store.find_uid(hex);
@@ -446,7 +532,8 @@ int cmd_list() {
 
 int cmd_read() {
   auto store = TagStore::load(TagStore::default_path());
-  auto reader = Acr122::open();
+  UsbPause pause;
+  auto reader = open_reader();
   auto uid = wait_for_tag(reader);
   print_tag(Acr122::uid_hex(uid), store);
   led_not_listening(reader);
@@ -459,7 +546,8 @@ int cmd_add(const std::string& query) {
   if (rc != 0) return rc;
   std::cout << t("game") << " " << game.name << "  " << game.appid << "  " << game.kind << "\n";
   auto store = TagStore::load(TagStore::default_path());
-  auto reader = Acr122::open();
+  UsbPause pause;
+  auto reader = open_reader();
   auto uid = wait_for_tag(reader);
   const std::string hex = Acr122::uid_hex(uid);
   store.upsert(Tag{hex, game.name, game.appid, game.kind});
@@ -473,7 +561,8 @@ int cmd_remove(const std::string& key) {
   auto store = TagStore::load(TagStore::default_path());
   std::string target = key;
   if (target.empty()) {
-    auto reader = Acr122::open();
+    UsbPause pause;
+    auto reader = open_reader();
     auto uid = wait_for_tag(reader);
     target = Acr122::uid_hex(uid);
     auto known = store.find_uid(target);
@@ -604,7 +693,8 @@ int main(int argc, char** argv) {
       return cmd_udev(join_args(argc, argv, 2));
     }
 
-    auto reader = Acr122::open();
+    UsbPause pause;
+    auto reader = open_reader();
     if (cmd == "firmware") {
       std::cout << reader.firmware() << "\n";
     } else if (cmd == "led") {

@@ -148,6 +148,8 @@ constexpr Msg kMsg[] = {
     {"watch_tag_off", "watch  tag af", "watch  tag off"},
     {"watch_stopping", "watch  stopper ", "watch  stopping "},
     {"watch_stopped", "watch  stoppet (rød, lytter ikke)", "watch  stopped (red, not listening)"},
+    {"watch_paused", "watch  USB fri til add/read", "watch  USB free for add/read"},
+    {"usb_busy", "nfc: USB optaget (prøv igen)", "nfc: USB busy (try again)"},
     {"tag_unbound", "nfc: tagget er ikke bundet til et spil",
      "nfc: tag is not bound to a game"},
     {"already_running", "kører allerede ", "already running "},
