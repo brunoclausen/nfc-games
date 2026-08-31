@@ -42,9 +42,9 @@ cd ~/nfc-games
 
 Gemte tags ligger i:
 
-`~/nfc-games/tags.conf`
+`~/.config/nfc-games/tags.conf`
 
-(filen i den mappe, du kører `nfc` fra. Eller `$NFC_TAGS` hvis den er sat.)
+(`$NFC_TAGS` overstyrer. Første kørsel kopierer den gamle `~/nfc-games/tags.conf`, hvis den findes.)
 
 Format:
 

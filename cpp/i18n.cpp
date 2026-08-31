@@ -4,7 +4,9 @@
 #include <cstdlib>
 #include <cstring>
 #include <fstream>
+#include <pwd.h>
 #include <string>
+#include <unistd.h>
 #include <vector>
 
 namespace {
@@ -224,13 +226,20 @@ bool known_code(const std::string& code) {
   return false;
 }
 
-std::filesystem::path config_dir() {
+}  // namespace
+
+std::filesystem::path nfc_config_dir() {
   if (const char* xdg = std::getenv("XDG_CONFIG_HOME"); xdg && *xdg) {
     return std::filesystem::path(xdg) / "nfc-games";
   }
   const char* home = std::getenv("HOME");
-  return std::filesystem::path(home ? home : "/var/home/bruno") / ".config" / "nfc-games";
+  if (!home || !*home) {
+    if (passwd* pw = ::getpwuid(::getuid())) home = pw->pw_dir;
+  }
+  return std::filesystem::path(home && *home ? home : "/tmp") / ".config" / "nfc-games";
 }
+
+namespace {
 
 std::string read_config_lang() {
   std::ifstream in(lang_config_path());
@@ -255,7 +264,7 @@ std::vector<Language> languages() {
   };
 }
 
-std::filesystem::path lang_config_path() { return config_dir() / "nfc.conf"; }
+std::filesystem::path lang_config_path() { return nfc_config_dir() / "nfc.conf"; }
 
 std::string current_lang_code() { return g_code; }
 
@@ -281,7 +290,7 @@ bool set_lang(std::string_view code) {
   auto norm = normalize_code(code);
   if (!known_code(norm)) return false;
   g_code = norm;
-  auto dir = config_dir();
+  auto dir = nfc_config_dir();
   std::error_code ec;
   std::filesystem::create_directories(dir, ec);
   auto path = lang_config_path();

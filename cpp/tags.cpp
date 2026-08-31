@@ -43,9 +43,27 @@ std::string normalize_name(std::string_view raw) {
   return s;
 }
 
+void migrate_legacy_tags(const std::filesystem::path& dest) {
+  std::error_code ec;
+  if (std::filesystem::exists(dest, ec)) return;
+  std::vector<std::filesystem::path> cands = {std::filesystem::current_path() / "tags.conf"};
+  if (const char* home = std::getenv("HOME"); home && *home) {
+    cands.push_back(std::filesystem::path(home) / "nfc-games" / "tags.conf");
+  }
+  for (const auto& src : cands) {
+    if (src == dest) continue;
+    if (!std::filesystem::is_regular_file(src, ec)) continue;
+    std::filesystem::create_directories(dest.parent_path(), ec);
+    std::filesystem::copy_file(src, dest, ec);
+    if (!ec) return;
+  }
+}
+
 std::filesystem::path TagStore::default_path() {
-  if (const char* env = std::getenv("NFC_TAGS")) return env;
-  return std::filesystem::current_path() / "tags.conf";
+  if (const char* env = std::getenv("NFC_TAGS"); env && *env) return env;
+  auto dest = nfc_config_dir() / "tags.conf";
+  migrate_legacy_tags(dest);
+  return dest;
 }
 
 TagStore TagStore::load(const std::filesystem::path& path) {

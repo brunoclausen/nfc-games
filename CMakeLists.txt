@@ -59,3 +59,8 @@ install(FILES udev/99-acr122u.rules DESTINATION ${CMAKE_INSTALL_DATADIR}/nfc-gam
 install(PROGRAMS packaging/install-udev.sh DESTINATION ${CMAKE_INSTALL_DATADIR}/nfc-games/udev)
 install(FILES packaging/nfc-games.desktop DESTINATION ${CMAKE_INSTALL_DATADIR}/applications)
 install(FILES packaging/nfc-games.png DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/256x256/apps)
+
+enable_testing()
+add_executable(nfc_tests tests/test_nfc.cpp cpp/steam.cpp cpp/tags.cpp cpp/i18n.cpp)
+target_include_directories(nfc_tests PRIVATE cpp)
+add_test(NAME nfc_tests COMMAND nfc_tests)

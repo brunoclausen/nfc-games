@@ -24,13 +24,16 @@ class SteamLibrary {
  public:
   // Discovers Steam roots, extra libraries, appmanifests and shortcuts.vdf.
   static SteamLibrary scan();
+  static SteamLibrary cached_scan();
 
   const std::vector<SteamGame>& games() const { return games_; }
   std::optional<SteamGame> find(std::string_view name_or_appid) const;
   std::vector<SteamGame> matches(std::string_view name_or_appid) const;
   static std::string steam_uri(const SteamGame& game);
+  static std::string process_needle(const SteamGame& game);
   static void launch(const SteamGame& game);
   static std::vector<RunningGame> running();
+  static bool is_running(std::uint32_t appid);
   static int stop(std::uint32_t appid = 0);
 
  private:

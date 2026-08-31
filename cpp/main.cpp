@@ -185,7 +185,7 @@ std::vector<uint8_t> wait_for_tag(Acr122& reader) {
 }
 
 int resolve_game(const std::string& query, SteamGame& out) {
-  auto lib = SteamLibrary::scan();
+  auto lib = SteamLibrary::cached_scan();
   auto hit = lib.matches(query);
   if (hit.empty()) {
     std::cerr << t("no_match") << "\"" << query << "\"\n";
@@ -278,14 +278,13 @@ int cmd_watch() {
           game.appid = known->appid;
           game.name = known->name;
           game.kind = known->kind;
-          if (auto full = SteamLibrary::scan().find(std::to_string(known->appid))) {
+          if (auto full = SteamLibrary::cached_scan().find(std::to_string(known->appid))) {
             game = *full;
           }
-          bool already = false;
           for (const auto& r : SteamLibrary::running()) {
-            if (r.appid == game.appid) already = true;
+            if (r.appid != game.appid) SteamLibrary::stop(r.appid);
           }
-          if (!already) {
+          if (!SteamLibrary::is_running(game.appid)) {
             std::cout << t("watch_start_steam") << game.name << "  "
                       << SteamLibrary::steam_uri(game) << "\n"
                       << std::flush;
@@ -312,6 +311,10 @@ int cmd_watch() {
     std::this_thread::sleep_for(250ms);
   }
 
+  if (active_appid != 0) {
+    std::cout << t("watch_stopping") << active_appid << "\n" << std::flush;
+    SteamLibrary::stop(active_appid);
+  }
   led_not_listening(reader);
   std::cout << t("watch_stopped") << "\n";
   return 0;
@@ -339,7 +342,7 @@ int cmd_start(const std::string& query) {
     int rc = resolve_game(query, game);
     if (rc != 0) return rc;
   }
-  if (auto full = SteamLibrary::scan().find(std::to_string(game.appid))) {
+  if (auto full = SteamLibrary::cached_scan().find(std::to_string(game.appid))) {
     game = *full;
   }
   auto run = SteamLibrary::running();
@@ -360,7 +363,7 @@ int cmd_start(const std::string& query) {
 }
 
 std::string name_for_appid(std::uint32_t appid) {
-  auto lib = SteamLibrary::scan();
+  auto lib = SteamLibrary::cached_scan();
   for (const auto& g : lib.games()) {
     if (g.appid == appid) return g.name;
   }

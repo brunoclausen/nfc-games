@@ -14,6 +14,7 @@ void i18n_init();
 std::vector<Language> languages();
 std::string current_lang_code();
 const char* current_lang_name();
+std::filesystem::path nfc_config_dir();
 std::filesystem::path lang_config_path();
 bool set_lang(std::string_view code);
 const char* t(const char* key);

@@ -42,9 +42,9 @@ cd ~/nfc-games
 
 Saved tags live in:
 
-`~/nfc-games/tags.conf`
+`~/.config/nfc-games/tags.conf`
 
-(the file in the directory you run `nfc` from. Or `$NFC_TAGS` if set.)
+(`$NFC_TAGS` overrides. The first run copies the old `~/nfc-games/tags.conf` if it exists.)
 
 Format:
 
