@@ -472,51 +472,75 @@ std::vector<RunningGame> SteamLibrary::running() {
   return out;
 }
 
-int SteamLibrary::stop(std::uint32_t appid) {
-  auto list = running();
-  int n = 0;
-  std::vector<std::uint32_t> ids;
-  for (const auto& g : list) {
-    if (appid != 0 && g.appid != appid) continue;
-    ids.push_back(g.appid);
-    if (::kill(g.pid, SIGTERM) == 0) ++n;
+std::vector<int> pids_for_appid(std::uint32_t appid, const std::vector<std::string>& needles) {
+  std::vector<int> pids;
+  DIR* proc = ::opendir("/proc");
+  if (!proc) return pids;
+  while (dirent* ent = ::readdir(proc)) {
+    if (ent->d_name[0] < '1' || ent->d_name[0] > '9') continue;
+    const int pid = std::atoi(ent->d_name);
+    std::ifstream in("/proc/" + std::string(ent->d_name) + "/cmdline", std::ios::binary);
+    if (!in) continue;
+    std::string cmd((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+    for (char& c : cmd) {
+      if (c == '\0') c = ' ';
+    }
+    if (cmd.find("steamwebhelper") != std::string::npos) continue;
+    if (cmd.find("__grok_user_cmd") != std::string::npos) continue;
+    if (cmd.find("/usr/bin/steam") != std::string::npos &&
+        cmd.find("SteamLaunch") == std::string::npos) {
+      continue;
+    }
+    bool hit = false;
+    for (const auto& n : needles) {
+      if (n.size() >= 4 && cmd.find(n) != std::string::npos) {
+        hit = true;
+        break;
+      }
+    }
+    if (hit) pids.push_back(pid);
   }
-  if (ids.empty() && appid != 0) ids.push_back(appid);
+  ::closedir(proc);
+  return pids;
+}
 
-  using clock = std::chrono::steady_clock;
-  const auto deadline = clock::now() + std::chrono::seconds(3);
-  while (clock::now() < deadline) {
-    bool left = false;
-    for (auto id : ids) {
-      if (!leftover_pids(id).empty()) left = true;
-    }
-    if (!left) break;
-    std::this_thread::sleep_for(std::chrono::milliseconds{200});
-  }
-  for (auto id : ids) {
-    for (int pid : leftover_pids(id)) {
-      if (::kill(pid, SIGKILL) == 0) ++n;
-    }
+int SteamLibrary::stop(std::uint32_t appid) {
+  if (appid == 0) {
+    auto list = running();
+    int n = 0;
+    for (const auto& g : list) n += stop(g.appid);
+    return n;
   }
 
   auto lib = SteamLibrary::scan();
+  std::vector<std::string> needles;
+  needles.push_back("AppId=" + std::to_string(appid));
+  auto dir = installdir_of(appid);
+  if (dir.size() >= 4) needles.push_back(dir);
   for (const auto& g : lib.games()) {
-    if (appid != 0 && g.appid != appid) continue;
-    const std::string needle = process_needle(g);
-    if (needle.size() < 8) continue;
-    DIR* proc = ::opendir("/proc");
-    if (!proc) continue;
-    while (dirent* ent = ::readdir(proc)) {
-      if (ent->d_name[0] < '1' || ent->d_name[0] > '9') continue;
-      const int pid = std::atoi(ent->d_name);
-      std::ifstream in("/proc/" + std::string(ent->d_name) + "/cmdline", std::ios::binary);
-      if (!in) continue;
-      std::string cmd((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
-      if (cmd.find("__grok_user_cmd") != std::string::npos) continue;
-      if (cmd.find(needle) == std::string::npos) continue;
-      if (::kill(pid, SIGTERM) == 0) ++n;
-    }
-    ::closedir(proc);
+    if (g.appid != appid) continue;
+    auto n = process_needle(g);
+    if (n.size() >= 8) needles.push_back(n);
   }
+
+  auto collect = [&] { return pids_for_appid(appid, needles); };
+  int n = 0;
+  for (int pid : collect()) {
+    ::kill(pid, SIGTERM);
+    ::kill(-pid, SIGTERM);
+    ++n;
+  }
+  using clock = std::chrono::steady_clock;
+  const auto deadline = clock::now() + std::chrono::seconds(5);
+  while (clock::now() < deadline) {
+    if (collect().empty()) break;
+    std::this_thread::sleep_for(std::chrono::milliseconds{150});
+  }
+  for (int pid : collect()) {
+    ::kill(pid, SIGKILL);
+    ::kill(-pid, SIGKILL);
+    ++n;
+  }
+  std::this_thread::sleep_for(std::chrono::milliseconds{200});
   return n;
 }

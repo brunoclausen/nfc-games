@@ -387,14 +387,17 @@ int cmd_stop(const std::string& query) {
   }
   std::cout << "stopper " << name << "  " << appid << "\n";
   int n = SteamLibrary::stop(appid);
-  if (n == 0 && SteamLibrary::running().empty()) {
-    std::cout << "intet spil kører\n";
-    return 0;
+  bool still = false;
+  for (const auto& r : SteamLibrary::running()) {
+    if (r.appid == appid) still = true;
   }
-  auto left = SteamLibrary::running();
-  if (!left.empty()) {
+  if (still) {
     std::cerr << "nfc: spillet kører stadig\n";
     return 1;
+  }
+  if (n == 0) {
+    std::cout << "intet spil kører\n";
+    return 0;
   }
   std::cout << "stoppet\n";
   return 0;
