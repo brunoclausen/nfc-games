@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=NFC Games
+Comment=ACR122U NFC tags and Steam games
+Exec=nfc watch
+Icon=nfc-games
+Terminal=true
+Categories=Game;
+Keywords=nfc;steam;acr122u;tag;
+StartupNotify=false
+X-AppImage-Name=nfc-games

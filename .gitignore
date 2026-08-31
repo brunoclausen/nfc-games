@@ -1,4 +1,7 @@
 /build/
+/build-appimage/
+/dist/
+/.tools/
 /.cache/
 compile_commands.json
 .clangd
@@ -6,3 +9,4 @@ compile_commands.json
 nfc
 tags.conf
 tags.conf.tmp
+*.AppImage

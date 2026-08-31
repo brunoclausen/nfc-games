@@ -1,0 +1,47 @@
+#!/bin/sh
+set -e
+HERE="$(dirname "$(readlink -f "$0")")"
+export NFC_SHARE="${NFC_SHARE:-$HERE/usr/share/nfc-games}"
+
+CONF="${XDG_CONFIG_HOME:-$HOME/.config}/nfc-games"
+mkdir -p "$CONF"
+if [ -z "$NFC_TAGS" ]; then
+  if [ ! -f "$CONF/tags.conf" ] && [ -f "$HOME/nfc-games/tags.conf" ]; then
+    cp "$HOME/nfc-games/tags.conf" "$CONF/tags.conf"
+  fi
+  export NFC_TAGS="$CONF/tags.conf"
+fi
+
+# Prefer libraries bundled in the AppImage (libusb, libudev).
+if [ -d "$HERE/usr/lib" ]; then
+  export LD_LIBRARY_PATH="$HERE/usr/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+fi
+export PATH="$HERE/usr/bin:${PATH:-/usr/bin}"
+
+needs_reader() {
+  case "${1:-}" in
+    watch|run|start|play|launch|add|tilfoj|tilføj|read|læs|laes|remove|rm|slet|farver|demo|colors|led|beep|firmware)
+      return 0
+      ;;
+  esac
+  return 1
+}
+
+install_udev_if_needed() {
+  [ "${NFC_SKIP_UDEV:-}" = "1" ] && return 0
+  [ -f /etc/udev/rules.d/99-acr122u.rules ] && return 0
+  RULE="$NFC_SHARE/udev/99-acr122u.rules"
+  HELPER="$NFC_SHARE/udev/install-udev.sh"
+  [ -f "$RULE" ] && [ -x "$HELPER" ] || return 0
+  if [ "$(id -u)" = "0" ]; then
+    "$HELPER" "$RULE" || true
+  elif command -v pkexec >/dev/null 2>&1; then
+    pkexec "$HELPER" "$RULE" || true
+  fi
+}
+
+if needs_reader "$1"; then
+  install_udev_if_needed
+fi
+
+exec "$HERE/usr/bin/nfc" "$@"

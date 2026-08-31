@@ -1,4 +1,5 @@
 #include "tags.hpp"
+#include "i18n.hpp"
 
 #include <algorithm>
 #include <cctype>
@@ -38,7 +39,7 @@ std::string normalize_uid(std::string_view raw) {
 
 std::string normalize_name(std::string_view raw) {
   std::string s = trim(raw);
-  if (s.empty()) throw std::runtime_error("tomt navn");
+  if (s.empty()) throw std::runtime_error(t("empty_name"));
   return s;
 }
 
@@ -103,7 +104,7 @@ std::optional<Tag> TagStore::find(const std::string& name_or_uid) const {
 void TagStore::upsert(Tag tag) {
   tag.uid = normalize_uid(tag.uid);
   tag.name = normalize_name(tag.name);
-  if (tag.uid.size() < 8) throw std::runtime_error("UID for kort");
+  if (tag.uid.size() < 8) throw std::runtime_error(t("uid_short"));
   tags_.erase(std::remove_if(tags_.begin(), tags_.end(),
                              [&](const Tag& t) {
                                return t.uid == tag.uid || lower(t.name) == lower(tag.name) ||
@@ -135,13 +136,13 @@ void TagStore::save() const {
   auto tmp = path_;
   tmp += ".tmp";
   std::ofstream out(tmp, std::ios::trunc);
-  if (!out) throw std::runtime_error("kan ikke skrive " + path_.string());
+  if (!out) throw std::runtime_error(t_join("cannot_write", path_.string()));
   out << "# uid  kind  appid  name\n";
-  for (const auto& t : tags_) {
-    out << t.uid << "  " << (t.kind.empty() ? "steam" : t.kind) << "  " << t.appid << "  "
-        << t.name << "\n";
+  for (const auto& tag : tags_) {
+    out << tag.uid << "  " << (tag.kind.empty() ? "steam" : tag.kind) << "  " << tag.appid
+        << "  " << tag.name << "\n";
   }
   out.close();
-  if (!out) throw std::runtime_error("kan ikke skrive " + path_.string());
+  if (!out) throw std::runtime_error(t_join("cannot_write", path_.string()));
   std::filesystem::rename(tmp, path_);
 }

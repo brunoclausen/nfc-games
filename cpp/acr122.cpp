@@ -1,4 +1,5 @@
 #include "acr122.hpp"
+#include "i18n.hpp"
 
 #include <libusb.h>
 
@@ -68,7 +69,7 @@ Acr122 Acr122::open() {
   libusb_device_handle* handle = libusb_open_device_with_vid_pid(ctx, kVid, kPid);
   if (!handle) {
     libusb_exit(ctx);
-    throw Acr122Error("Ingen ACR122U fundet (USB 072f:2200). Er læseren sat i?");
+    throw Acr122Error(t("no_reader"));
   }
 
   libusb_set_auto_detach_kernel_driver(handle, 1);
@@ -76,8 +77,7 @@ Acr122 Acr122::open() {
   if (rc != 0) {
     libusb_close(handle);
     libusb_exit(ctx);
-    throw Acr122Error("Kunne ikke claim USB-interface: " + usb_err(rc) +
-                      " (kør med sudo eller installer udev-reglen)");
+    throw Acr122Error(t_join("claim_fail", usb_err(rc)) + t("claim_hint"));
   }
 
   libusb_device* dev = libusb_get_device(handle);
@@ -191,7 +191,7 @@ std::vector<uint8_t> Acr122::bulk_read(int timeout_ms) {
     throw Acr122Error("USB read: " + usb_err(rc));
   }
   if (transferred < 10) {
-    throw Acr122Error("CCID-svar for kort");
+    throw Acr122Error(t("ccid_short"));
   }
   return {buf.begin(), buf.begin() + transferred};
 }
@@ -225,7 +225,7 @@ Acr122::ApduReply Acr122::transmit(const std::vector<uint8_t>& apdu, int timeout
   bulk_write(frame, timeout_ms);
   auto rx = bulk_read(timeout_ms);
   if (rx[0] != kDataBlock) {
-    throw Acr122Error("Uventet CCID-svar");
+    throw Acr122Error(t("ccid_unexpected"));
   }
   const uint8_t ccid_status = rx[7];
   const uint8_t ccid_error = rx[8];
@@ -236,7 +236,7 @@ Acr122::ApduReply Acr122::transmit(const std::vector<uint8_t>& apdu, int timeout
       static_cast<uint32_t>(rx[1]) | (static_cast<uint32_t>(rx[2]) << 8) |
       (static_cast<uint32_t>(rx[3]) << 16) | (static_cast<uint32_t>(rx[4]) << 24);
   if (rx.size() < 10 + payload_len) {
-    throw Acr122Error("CCID payload afkortet");
+    throw Acr122Error(t("ccid_trunc"));
   }
   std::vector<uint8_t> payload(rx.begin() + 10, rx.begin() + 10 + payload_len);
   ApduReply reply;
@@ -273,7 +273,7 @@ std::vector<uint8_t> Acr122::xfr(const std::vector<uint8_t>& apdu, int timeout_m
   auto r = transmit(apdu, timeout_ms);
   if (r.sw1 == 0x90) return r.data;
   std::ostringstream os;
-  os << std::hex << "APDU fejlede SW=" << static_cast<int>(r.sw1) << " "
+  os << std::hex << t("apdu_fail") << static_cast<int>(r.sw1) << " "
      << static_cast<int>(r.sw2);
   throw Acr122Error(os.str());
 }
@@ -331,7 +331,7 @@ std::vector<uint8_t> Acr122::wait_uid(std::chrono::milliseconds timeout) {
     std::this_thread::sleep_for(std::chrono::milliseconds{200});
   }
   set_led(Led::Red);
-  throw Acr122Error("timeout: intet tag");
+  throw Acr122Error(t("timeout_tag"));
 }
 
 void Acr122::disable_card_detect_buzzer() {

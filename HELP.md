@@ -32,7 +32,11 @@ cd ~/nfc-games
 | `nfc beep 300` | Bip (ms) |
 | `nfc firmware` | Vis ACR122U-firmware |
 | `nfc --help` / `nfc -h` | Kort hjælp i terminalen |
-| `nfc help` | Denne hjælp (HELP.md) |
+| `nfc help` | Denne hjælp (HELP.md / HELP.en.md) |
+| `nfc sprog` / `nfc lang` | Vis sprog og hvilket der er aktivt |
+| `nfc sprog en` / `nfc lang en` | Skift sprog (da, en) og gem det |
+| `nfc udev` | Vis udev-regel til ACR122U |
+| `nfc udev install` | Installér udev-regel (pkexec, ligger i AppImage) |
 
 ## Tag-liste
 
@@ -50,6 +54,19 @@ Format:
 ```
 
 Filen oprettes først, når et tag bliver gemt med `nfc add`.
+
+## Sprog
+
+Tekster i `nfc` kan skiftes:
+
+```bash
+./build/nfc sprog          # liste (aktivt sprog er markeret)
+./build/nfc sprog en       # English
+./build/nfc sprog da       # Dansk
+```
+
+`nfc lang` er det samme. Valget gemmes i `~/.config/nfc-games/nfc.conf`.  
+`$NFC_LANG` (fx `en` eller `da`) overstyrer filen for én kørsel.
 
 ## Steam-liste
 
@@ -96,6 +113,22 @@ cd ~/nfc-games
 cmake -S . -B build
 cmake --build build
 ```
+
+## AppImage
+
+Fuld, selvstændig binær (system-libusb, hjælp, udev-regel, ikon):
+
+```bash
+cd ~/nfc-games
+./scripts/build-appimage.sh
+./dist/nfc-games-x86_64.AppImage --help
+./dist/nfc-games-x86_64.AppImage games
+./dist/nfc-games-x86_64.AppImage watch
+```
+
+Tags gemmes i `~/.config/nfc-games/tags.conf` (kopieres fra `~/nfc-games/tags.conf` første gang, hvis den findes). Dobbeltklik i filhåndtering starter `nfc watch` i en terminal.
+
+USB-læseren: AppImage indeholder udev-regel og installer. Første `watch`/`add`/`read` spørger om root via pkexec, hvis reglen mangler. Manuelt: `./dist/nfc-games-x86_64.AppImage udev install`.
 
 ## Typisk brug
 

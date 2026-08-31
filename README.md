@@ -43,6 +43,17 @@ ACR122U har en to-farvet LED: rød, grøn og gul (begge tændt).
 ./build/nfc beep 300
 ./build/nfc firmware
 ./build/nfc help
+./build/nfc sprog            # vis sprog
+./build/nfc sprog en         # English (nfc lang virker også)
+./build/nfc udev             # vis udev-regel
+./build/nfc udev install     # installér udev-regel (pkexec)
+```
+
+AppImage (fuld pakke):
+
+```bash
+./scripts/build-appimage.sh
+./dist/nfc-games-x86_64.AppImage games
 ```
 
 `nfc games` finder Steam selv (`~/.steam/steam`, libraryfolders.vdf og `shortcuts.vdf`). Ingen fast spilleliste.

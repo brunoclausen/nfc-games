@@ -1,4 +1,5 @@
 #include "steam.hpp"
+#include "i18n.hpp"
 
 #include <algorithm>
 #include <cctype>
@@ -380,10 +381,10 @@ std::string SteamLibrary::steam_uri(const SteamGame& game) {
 }
 
 void SteamLibrary::launch(const SteamGame& game) {
-  if (game.appid == 0) throw std::runtime_error("spil mangler appid");
+  if (game.appid == 0) throw std::runtime_error(t("missing_appid"));
   const std::string uri = steam_uri(game);
   const pid_t pid = ::fork();
-  if (pid < 0) throw std::runtime_error("kunne ikke starte Steam");
+  if (pid < 0) throw std::runtime_error(t("steam_fork"));
   if (pid != 0) return;
   ::setsid();
   apply_steam_session_env();
