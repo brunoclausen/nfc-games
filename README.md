@@ -1,5 +1,7 @@
 # nfc-games
 
+**How to use it at home (Danish):** [VEJLEDNING.md](VEJLEDNING.md)
+
 Linux helper: tap an **ACR122U** NFC tag to start or stop a **Steam** game
 (including non-Steam shortcuts from [Steam ROM Manager](https://steamgriddb.github.io/steam-rom-manager/)).
 

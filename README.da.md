@@ -1,5 +1,8 @@
 # nfc-games
 
+**Brug derhjemme:** [VEJLEDNING.md](VEJLEDNING.md)  
+På Gitea: http://192.168.1.3:3002/app/nfc-games/src/branch/main/VEJLEDNING.md
+
 Linux-værktøj: læg et **ACR122U**-NFC-tag på læseren for at starte eller stoppe et **Steam**-spil
 (også non-Steam-genveje fra [Steam ROM Manager](https://steamgriddb.github.io/steam-rom-manager/)).
 

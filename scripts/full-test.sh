@@ -66,7 +66,7 @@ run_files() {
   start "1. Filer"
   local f
   for f in \
-    CMakeLists.txt VERSION LICENSE README.md README.da.md \
+    CMakeLists.txt VERSION LICENSE README.md README.da.md VEJLEDNING.md \
     cpp/main.cpp cpp/app.cpp cpp/watch.cpp cpp/cmds.cpp cpp/menu.cpp \
     cpp/acr122.cpp cpp/tags.cpp cpp/steam.cpp cpp/i18n.cpp \
     tests/test_nfc.cpp tests/check_langs.py \
