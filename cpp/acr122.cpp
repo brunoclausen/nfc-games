@@ -155,6 +155,8 @@ Acr122& Acr122::operator=(Acr122&& other) noexcept {
 
 void Acr122::close() {
   if (handle_) {
+    // Bus reset clears ACR122U firmware hangs after long PICC polling.
+    libusb_reset_device(handle_);
     libusb_release_interface(handle_, 0);
     libusb_close(handle_);
     handle_ = nullptr;

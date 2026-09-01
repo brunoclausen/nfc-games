@@ -94,26 +94,9 @@ file "$OUT"
 ls -lh "$OUT"
 
 if [[ "${NFC_AUTO_INSTALL:-1}" != "0" ]]; then
-  echo "Installing AppImage (menu, autostart, udev)..."
+  echo "Installing AppImage (menu, udev)..."
   "$OUT" install || echo "nfc: auto-install skipped (run the AppImage once)" >&2
-
-  installed="$HOME/Applications/nfc-games-x86_64.AppImage"
-  pidfile="${XDG_CONFIG_HOME:-$HOME/.config}/nfc-games/watch.pid"
-  if [[ -f "$pidfile" ]]; then
-    old="$(tr -d '[:space:]' < "$pidfile" || true)"
-    if [[ -n "$old" ]] && kill -0 "$old" 2>/dev/null; then
-      echo "Restarting watch..."
-      kill "$old" 2>/dev/null || true
-      for _ in 1 2 3 4 5 6 7 8 9 10; do
-        kill -0 "$old" 2>/dev/null || break
-        sleep 0.2
-      done
-    fi
-  fi
-  if command -v systemctl >/dev/null 2>&1 && [[ -x "$installed" ]]; then
-    systemctl --user restart nfc-games.service >/dev/null 2>&1 || \
-      env NFC_SKIP_INSTALL=1 "$installed" watch >/dev/null 2>&1 &
-  elif [[ -x "$installed" ]]; then
-    env NFC_SKIP_INSTALL=1 "$installed" watch >/dev/null 2>&1 &
+  if command -v systemctl >/dev/null 2>&1; then
+    systemctl --user disable --now nfc-games.service >/dev/null 2>&1 || true
   fi
 fi

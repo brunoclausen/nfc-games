@@ -5,12 +5,15 @@ Bruk:
   nfc --help
   nfc -h
   nfc version
+  nfc                         interaktiv meny
   nfc menu                    interaktiv meny
   nfc <kommando> [argumenter]
 
 Brikker og spill:
   nfc games                   skann Steam-spill og snarveier
   nfc watch                   klar=grønn; brikke på=gul+2 pip+start; brikke av=1 pip+stopp+grønn; stopp=rød
+  nfc restart                 start watch på nytt (systemd eller pid)
+  nfc genstart                samme som nfc restart
   nfc start <spill|appid>     start via Steam
   nfc start                   les brikke og start bundet spill
   nfc stop [spill|appid]      stopp spill
@@ -61,6 +64,7 @@ nfc-games — meny
  15  lang        vis eller bytt språk
  16  help        HELP.md
  17  version     versjon
+ 18  restart     start watch på nytt
   0  avslutt
 <<<
 menu_prompt=Nummer: 
@@ -94,6 +98,15 @@ watch_stopping=watch  stopper
 watch_stopped=watch  stoppet (rød, lytter ikke)
 watch_already=watch kjører allerede (pid 
 watch_paused=watch  USB ledig for add/read
+watch_usb_reset=watch  USB-reset (lang kjøring)
+watch_running=watch kjører (pid 
+watch_starting=starter watch...
+watch_started=watch startet (pid 
+restarting=starter watch på nytt...
+restart_ok=watch startet på nytt (pid 
+restart_fail=nfc: kunne ikke starte watch på nytt
+restart_systemd_fail=nfc: systemd kunne ikke starte watch på nytt, prøver pid
+restart_hint=kjør nfc restart for å bruke språket i watch
 usb_busy=nfc: USB opptatt (prøv igjen)
 tag_unbound=nfc: brikken er ikke bundet til et spill
 already_running=kjører allerede 

@@ -5,12 +5,15 @@ Verwendung:
   nfc --help
   nfc -h
   nfc version
+  nfc                         interaktives Menü
   nfc menu                    interaktives Menü
   nfc <befehl> [argumente]
 
 Tags und Spiele:
   nfc games                   Steam-Spiele und Shortcuts scannen
   nfc watch                   bereit=grün; Tag auf=gelb+2 Pieps+Start; Tag ab=1 Pieps+Stop+grün; Stop=rot
+  nfc restart                 Watch neu starten (systemd oder pid)
+  nfc genstart                wie nfc restart
   nfc start <spiel|appid>     über Steam starten
   nfc start                   Tag lesen und gebundenes Spiel starten
   nfc stop [spiel|appid]      laufendes Spiel beenden
@@ -65,6 +68,7 @@ nfc-games — Menü
  15  lang        Sprache anzeigen oder wechseln
  16  help        HELP.md
  17  version     Version
+ 18  restart     Watch neu starten
   0  beenden
 <<<
 menu_prompt=Nummer: 
@@ -98,6 +102,15 @@ watch_stopping=watch  stoppt
 watch_stopped=watch  gestoppt (rot, hört nicht)
 watch_already=watch läuft bereits (pid 
 watch_paused=watch  USB frei für add/read
+watch_usb_reset=watch  USB-Reset (langer Betrieb)
+watch_running=watch läuft (pid 
+watch_starting=Watch wird gestartet...
+watch_started=Watch gestartet (pid 
+restarting=Watch wird neu gestartet...
+restart_ok=Watch neu gestartet (pid 
+restart_fail=nfc: Watch konnte nicht neu gestartet werden
+restart_systemd_fail=nfc: systemd konnte Watch nicht neu starten, versuche pid
+restart_hint=nfc restart ausführen, damit Watch die Sprache übernimmt
 usb_busy=nfc: USB belegt (erneut versuchen)
 tag_unbound=nfc: Tag ist an kein Spiel gebunden
 already_running=läuft bereits 

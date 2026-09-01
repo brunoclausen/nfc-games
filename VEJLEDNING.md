@@ -27,7 +27,7 @@ Kun **ét** spil ad gangen.
 1. Tænd **steam-win11** og log ind.  
 2. Start **Steam** (skal køre).  
 3. USB-læseren skal sidde i.  
-4. **Watch** starter selv ved login. Grøn LED = klar.  
+4. Åbn **NFC Games** og vælg **1** (watch). Grøn LED = klar.  
 5. Læg et bundet tag på læseren. Tag det af for at stoppe.
 
 Du skal **ikke** åbne koden. Du skal **ikke** bygge noget.
@@ -54,11 +54,12 @@ Dobbeltklik **NFC Games** i app-menuen, eller kør:
 ~/Applications/nfc-games-x86_64.AppImage
 ```
 
-Skriv et **nummer** og Enter.
+Det åbner **menuen**. Watch kører ikke i baggrunden. Vælg **1** for at lytte. Skriv et **nummer** og Enter.
 
 | Nr. | Hvad |
 | --- | --- |
 | 1 | Watch (lyt efter tags) |
+| 18 | Genstart watch |
 | 2 | Vis Steam-spil |
 | 6 | Bind nyt tag til et spil |
 | 7 | Læs tag |
@@ -87,13 +88,25 @@ Bind **ikke** tags til `boot-windows` eller Proton/runtime-værktøjer.
 ## Hvis det ikke virker
 
 **LED er rød**  
-Watch kører ikke. Tjek at du er logget ind. Eller åbn menuen og vælg **1**.
+Watch kører ikke. Tjek at du er logget ind. Genstart med:
+
+```bash
+~/Applications/nfc-games-x86_64.AppImage restart
+```
+
+Eller åbn menuen og vælg **18**.
 
 **Ingen reaktion på tag**  
 - Steam skal køre.  
 - Tagget skal være bundet (menu **8**).  
 - Træk læseren ud og sæt den i igen.  
 - Firmware (menu **13**) skal ligne `ACR122U216`.
+
+**Skift tag**  
+Tag A af og læg B på. Watch skal skifte spil uden at gå via grøn først.
+
+**Har kørt længe, tags reagerer dårligt**  
+ACR122U bliver træt. Watch laver USB-reset selv efter ~5 min uden tag, og når du tager tagget af. Hjælper det ikke: Ctrl+C, åbn AppImage igen, vælg **1**.
 
 **Spillet lukker mens tagget ligger på**  
 Det skulle være rettet. Læg tagget fast på læseren; LED skal blive **gul**.
@@ -125,7 +138,7 @@ Detaljer på wiki’en (gem wiki’en, ikke kun denne fil):
 - http://192.168.1.3:3002/app/nfc-games/wiki/Upload  
 - http://192.168.1.3:3002/app/nfc-games/wiki/Full-test  
 
-**Kort:** Watch starter selv ved login. Gitea tester og bygger AppImage selv, når koden pushes (PC tændt). GitHub-upload er sat op, men **ikke tændt** før deploy key + token.
+**Kort:** Åbn AppImage og vælg **1** for watch. Gitea tester og bygger AppImage selv, når koden pushes (PC tændt). GitHub-upload er sat op, men **ikke tændt** før deploy key + token.
 
 Hvis Grok ændrer programmet (ikke hverdag):
 

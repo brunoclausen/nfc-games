@@ -4,9 +4,18 @@
 #include "i18n.hpp"
 #include "watch.hpp"
 
+#include <cerrno>
+#include <chrono>
+#include <csignal>
 #include <cstdlib>
+#include <fcntl.h>
+#include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <sys/wait.h>
+#include <thread>
+#include <unistd.h>
+#include <vector>
 
 #ifndef NFC_VERSION
 #define NFC_VERSION "dev"
@@ -246,6 +255,194 @@ int cmd_udev(const std::string& arg) {
   return 0;
 }
 
+namespace {
+
+int run_cmd(std::vector<const char*> argv, bool quiet) {
+  argv.push_back(nullptr);
+  const pid_t pid = ::fork();
+  if (pid < 0) return 127;
+  if (pid == 0) {
+    if (quiet) {
+      const int fd = ::open("/dev/null", O_RDWR);
+      if (fd >= 0) {
+        ::dup2(fd, STDOUT_FILENO);
+        ::dup2(fd, STDERR_FILENO);
+        if (fd > 2) ::close(fd);
+      }
+    }
+    ::execvp(argv[0], const_cast<char**>(argv.data()));
+    ::_exit(127);
+  }
+  int st = 0;
+  if (::waitpid(pid, &st, 0) < 0) return 127;
+  if (WIFEXITED(st)) return WEXITSTATUS(st);
+  return 1;
+}
+
+int systemd_user(const char* action, bool quiet) {
+  return run_cmd({"systemctl", "--user", action, "nfc-games.service"}, quiet);
+}
+
+bool systemd_unit_present() {
+  std::filesystem::path unit;
+  if (const char* xdg = std::getenv("XDG_CONFIG_HOME"); xdg && *xdg) {
+    unit = std::filesystem::path(xdg) / "systemd" / "user" / "nfc-games.service";
+  } else if (const char* home = std::getenv("HOME"); home && *home) {
+    unit = std::filesystem::path(home) / ".config" / "systemd" / "user" / "nfc-games.service";
+  }
+  std::error_code ec;
+  return !unit.empty() && std::filesystem::is_regular_file(unit, ec);
+}
+
+int live_watch_pid() {
+  std::ifstream in(watch_pid_path());
+  int pid = 0;
+  if (in >> pid && pid > 0 && pid != ::getpid() && ::kill(pid, 0) == 0) return pid;
+  return 0;
+}
+
+int wait_pid_gone(int pid, int ms) {
+  using namespace std::chrono_literals;
+  for (int waited = 0; waited < ms; waited += 100) {
+    if (::kill(pid, 0) != 0 && errno == ESRCH) return 0;
+    std::this_thread::sleep_for(100ms);
+  }
+  return (::kill(pid, 0) == 0) ? 1 : 0;
+}
+
+int stop_watch_pid(int pid) {
+  if (pid <= 0) return 0;
+  ::kill(pid, SIGTERM);
+  if (wait_pid_gone(pid, 4000) == 0) return 0;
+  ::kill(pid, SIGKILL);
+  return wait_pid_gone(pid, 1000);
+}
+
+std::filesystem::path watch_binary() {
+  std::error_code ec;
+  if (const char* app = std::getenv("APPIMAGE"); app && *app) {
+    const std::filesystem::path p(app);
+    if (std::filesystem::is_regular_file(p, ec) && ::access(app, X_OK) == 0) return p;
+  }
+  if (const char* home = std::getenv("HOME"); home && *home) {
+    const auto p = std::filesystem::path(home) / "Applications" / "nfc-games-x86_64.AppImage";
+    if (std::filesystem::is_regular_file(p, ec) && ::access(p.c_str(), X_OK) == 0) return p;
+  }
+  char buf[4096];
+  const ssize_t n = ::readlink("/proc/self/exe", buf, sizeof(buf) - 1);
+  if (n > 0) {
+    buf[n] = 0;
+    return buf;
+  }
+  return {};
+}
+
+int spawn_watch() {
+  const auto bin = watch_binary();
+  if (bin.empty()) return 1;
+  const pid_t pid = ::fork();
+  if (pid < 0) return 1;
+  if (pid == 0) {
+    ::setsid();
+    const pid_t grand = ::fork();
+    if (grand < 0) ::_exit(127);
+    if (grand > 0) ::_exit(0);
+    const int fd = ::open("/dev/null", O_RDWR);
+    if (fd >= 0) {
+      ::dup2(fd, STDIN_FILENO);
+      if (fd > 2) ::close(fd);
+    }
+    ::setenv("NFC_SKIP_INSTALL", "1", 1);
+    const auto s = bin.string();
+    ::execl(s.c_str(), s.c_str(), "watch", nullptr);
+    ::_exit(127);
+  }
+  int st = 0;
+  ::waitpid(pid, &st, 0);
+  return 0;
+}
+
+int wait_new_watch_pid(int old, int ms) {
+  using namespace std::chrono_literals;
+  for (int waited = 0; waited < ms; waited += 100) {
+    const int pid = live_watch_pid();
+    if (pid > 0 && pid != old) return pid;
+    std::this_thread::sleep_for(100ms);
+  }
+  return live_watch_pid();
+}
+
+}  // namespace
+
+int cmd_start_watch() {
+  if (const int pid = live_watch_pid()) {
+    std::cout << t("watch_running") << pid << ")\n";
+    return 0;
+  }
+  std::cout << t("watch_starting") << "\n" << std::flush;
+  if (systemd_unit_present()) {
+    systemd_user("daemon-reload", true);
+    if (systemd_user("start", true) == 0) {
+      using namespace std::chrono_literals;
+      for (int i = 0; i < 40; ++i) {
+        if (systemd_user("is-active", true) == 0) break;
+        std::this_thread::sleep_for(100ms);
+      }
+      if (systemd_user("is-active", true) == 0) {
+        const int pid = wait_new_watch_pid(0, 4000);
+        std::cout << t("watch_started") << (pid > 0 ? pid : 0) << ")\n";
+        return 0;
+      }
+    }
+  }
+  if (spawn_watch() != 0) {
+    std::cerr << t("restart_fail") << "\n";
+    return 1;
+  }
+  const int pid = wait_new_watch_pid(0, 4000);
+  if (pid <= 0) {
+    std::cerr << t("restart_fail") << "\n";
+    return 1;
+  }
+  std::cout << t("watch_started") << pid << ")\n";
+  return 0;
+}
+
+int cmd_restart() {
+  std::cout << t("restarting") << "\n" << std::flush;
+  const int old = live_watch_pid();
+  if (systemd_unit_present()) {
+    systemd_user("daemon-reload", true);
+    int rc = systemd_user("restart", true);
+    if (rc != 0) rc = systemd_user("start", true);
+    if (rc == 0) {
+      using namespace std::chrono_literals;
+      for (int i = 0; i < 40; ++i) {
+        if (systemd_user("is-active", true) == 0) break;
+        std::this_thread::sleep_for(100ms);
+      }
+      if (systemd_user("is-active", true) == 0) {
+        const int pid = wait_new_watch_pid(old, 4000);
+        std::cout << t("restart_ok") << (pid > 0 ? pid : 0) << ")\n";
+        return 0;
+      }
+    }
+    std::cerr << t("restart_systemd_fail") << "\n";
+  }
+  if (old) stop_watch_pid(old);
+  if (spawn_watch() != 0) {
+    std::cerr << t("restart_fail") << "\n";
+    return 1;
+  }
+  const int pid = wait_new_watch_pid(old, 4000);
+  if (pid <= 0) {
+    std::cerr << t("restart_fail") << "\n";
+    return 1;
+  }
+  std::cout << t("restart_ok") << pid << ")\n";
+  return 0;
+}
+
 int cmd_lang(const std::string& want) {
   if (want.empty()) {
     const auto cur = current_lang_code();
@@ -265,6 +462,7 @@ int cmd_lang(const std::string& want) {
   }
   std::cout << t("lang_set") << current_lang_name() << " (" << current_lang_code() << ")\n";
   std::cout << t("lang_saved") << lang_config_path().string() << "\n";
+  std::cout << t("restart_hint") << "\n";
   return 0;
 }
 
@@ -276,7 +474,10 @@ int nfc_run(const std::string& cmd, const std::string& arg) {
   }
   if (cmd == "list" || cmd == "ls") return cmd_list();
   if (cmd == "games" || cmd == "spil" || cmd == "steam") return cmd_games();
+  if (cmd == "restart" || cmd == "genstart") return cmd_restart();
+  if (cmd == "startwatch" || cmd == "lyt") return cmd_start_watch();
   if (cmd == "watch" || cmd == "run") {
+    if (arg == "restart" || arg == "genstart") return cmd_restart();
     nfc_watch_arm();
     return cmd_watch();
   }

@@ -9,12 +9,18 @@ Categories=Game;
 Keywords=nfc;steam;acr122u;tag;
 StartupNotify=false
 X-AppImage-Name=nfc-games
-Actions=Watch;Menu;Games;List;UdevInstall;
+Actions=Watch;Restart;Menu;Games;List;UdevInstall;
 
 [Desktop Action Watch]
 Name=Watch
 Name[da]=Watch (lyt)
 Exec=nfc watch
+
+[Desktop Action Restart]
+Name=Restart watch
+Name[da]=Genstart watch
+Name[de]=Watch neu starten
+Exec=nfc restart
 
 [Desktop Action Menu]
 Name=Menu

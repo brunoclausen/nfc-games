@@ -7,7 +7,7 @@ already-running Steam client. It does not open network ports and does not store 
 - `nfc udev install` copies a udev rule with root (pkexec/sudo). Review
   `udev/99-acr122u.rules` before running it.
 - The AppImage copies itself to `~/Applications` and writes a user systemd
-  unit for `watch` at login. It does not run as root except for udev.
+  unit exists for optional `nfc restart`. Watch does not autostart. It does not run as root except for udev.
 - `nfc stop` matches process command lines. Do not bind tags to system
   tools or `boot-windows` shortcuts.
 

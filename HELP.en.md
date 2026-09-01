@@ -17,6 +17,7 @@ cmake -S . -B build && cmake --build build
 | --- | --- |
 | `nfc menu` | Interactive menu (numbered) |
 | `nfc watch` | Tag on = yellow + 2 beeps + start game; tag off = 1 beep + stop + green |
+| `nfc restart` / `nfc genstart` | Restart watch (systemd user unit, else pid) |
 | `nfc games` | Auto-scan all Steam games and non-Steam shortcuts |
 | `nfc start "BloodRayne 2"` | Start game via Steam (only one at a time) |
 | `nfc start` | Read tag and start the bound game |
@@ -111,29 +112,33 @@ Unplug USB and plug it back in. Green LED = ready. Yellow + 2 beeps = tag on. Gr
 ## AppImage
 
 The first run (or `./scripts/build-appimage.sh`) installs the AppImage to
-`~/Applications/nfc-games-x86_64.AppImage`, the app menu, `watch` at login (systemd),
+`~/Applications/nfc-games-x86_64.AppImage`, the app menu,
 and the udev rule (password via pkexec). Tags are stored in `~/.config/nfc-games/tags.conf`.
+Watch does **not** run in the background; choose **1** in the menu.
 
 ```bash
+~/Applications/nfc-games-x86_64.AppImage            # menu
 ~/Applications/nfc-games-x86_64.AppImage install
 ~/Applications/nfc-games-x86_64.AppImage udev install   # only if pkexec was cancelled
 ~/Applications/nfc-games-x86_64.AppImage games
 ~/Applications/nfc-games-x86_64.AppImage watch
+~/Applications/nfc-games-x86_64.AppImage restart
 ```
 
 ## Typical use
 
 ```bash
 AI=~/Applications/nfc-games-x86_64.AppImage
+$AI                 # menu
 $AI games
 $AI add "BloodRayne 2"
-$AI watch
 ```
 
-`nfc watch` runs until Ctrl+C.
+With no arguments, only the menu opens. Choose **1** for watch in that terminal.
 
 - **Green + one beep** — tag off, game stops, scanner is listening
 - **Yellow + two beeps** — tag on, game starts
+- **Switch tag** — a new tag stops the old game and starts the new one (no green in between)
 - **Red** — tool is not running (watch stopped, or USB error)
 
 Ctrl+C: LED red.

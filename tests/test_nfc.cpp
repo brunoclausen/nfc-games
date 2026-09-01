@@ -1,6 +1,7 @@
 #include "i18n.hpp"
 #include "steam.hpp"
 #include "tags.hpp"
+#include "watch.hpp"
 
 #include <cstdlib>
 #include <filesystem>
@@ -73,6 +74,21 @@ int main() {
     check(!store.find_uid("04AABBCCDD0000"), "removed");
   }
 
+  {
+    TagTracker tr;
+    check(tr.feed("AA") == TagTracker::Event::None, "first AA is candidate");
+    check(tr.feed("AA") == TagTracker::Event::On, "second AA turns on");
+    check(tr.feed("BB") == TagTracker::Event::None, "first BB is switch candidate");
+    check(tr.feed("") == TagTracker::Event::None, "empty during swap keeps candidate");
+    check(tr.feed("BB") == TagTracker::Event::Switch, "second BB switches");
+    check(tr.active == "BB", "active is BB after switch");
+    for (int i = 0; i < TagTracker::kGone - 1; ++i) {
+      check(tr.feed("") == TagTracker::Event::None, "absent not gone yet");
+    }
+    check(tr.feed("") == TagTracker::Event::Off, "kGone empties is off");
+    check(tr.active.empty(), "active cleared on off");
+  }
+
   check(normalize_uid("04aa:bb-cc dd") == "04AABBCCDD", "normalize_uid strips junk");
   check(normalize_uid("1d2b7022960000") == "1D2B7022960000", "normalize_uid upper");
   {
@@ -88,8 +104,12 @@ int main() {
   check(set_lang("en"), "set_lang en");
   check(std::string(t("wait_tag")).find("place") != std::string::npos, "english wait_tag");
   check(std::string(t("watch_already")).find("already") != std::string::npos, "english watch_already");
+  check(std::string(t("restart_ok")).find("restarted") != std::string::npos, "english restart_ok");
+  check(std::string(t("watch_started")).find("started") != std::string::npos, "english watch_started");
+  check(std::string(t("watch_usb_reset")).find("USB") != std::string::npos, "english watch_usb_reset");
   check(set_lang("da"), "set_lang da");
   check(std::string(t("watch_already")).find("kører") != std::string::npos, "danish watch_already");
+  check(std::string(t("restart_ok")).find("genstartet") != std::string::npos, "danish restart_ok");
   check(std::string(t("menu_text")).find("watch") != std::string::npos, "danish menu_text");
   check(set_lang("en"), "set_lang en again");
   check(std::string(t("menu_text")).find("ready") != std::string::npos, "english menu_text");

@@ -54,20 +54,21 @@ A self-contained binary if you do not want to keep a source tree. First run
 installs itself:
 
 - copies itself to `~/Applications/nfc-games-x86_64.AppImage`
-- app menu (`nfc menu`); `watch` at login via a user systemd service
+- app menu (`nfc menu`); watch only when you choose it (not in the background)
 - ACR122U udev rule (password via pkexec, once)
 
 ```bash
 ./scripts/build-appimage.sh
 # output: dist/nfc-games-x86_64.AppImage
-# also installs to ~/Applications and restarts watch
+# also installs to ~/Applications (does not start watch)
 ```
 
 ```bash
 chmod +x nfc-games-x86_64.AppImage
-./nfc-games-x86_64.AppImage           # install + watch
+./nfc-games-x86_64.AppImage           # install + menu
 ./nfc-games-x86_64.AppImage install   # install only
 ./nfc-games-x86_64.AppImage watch
+./nfc-games-x86_64.AppImage restart   # restart watch without systemctl
 ```
 
 ## Upload changes (Gitea, free)

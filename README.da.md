@@ -51,20 +51,21 @@ En samlet binær, hvis du ikke vil beholde kildekoden. Første kørsel
 installerer sig selv:
 
 - kopierer altid sig selv til `~/Applications/nfc-games-x86_64.AppImage`
-- app-menu (`nfc menu`); `watch` ved login via en user systemd-service
+- app-menu (`nfc menu`); watch kun når du vælger den (ikke i baggrunden)
 - ACR122U udev-regel (adgangskode via pkexec, én gang)
 
 ```bash
 ./scripts/build-appimage.sh
 # output: dist/nfc-games-x86_64.AppImage
-# installerer også til ~/Applications og genstarter watch
+# installerer også til ~/Applications (starter ikke watch)
 ```
 
 ```bash
 chmod +x nfc-games-x86_64.AppImage
-./nfc-games-x86_64.AppImage           # installér + watch
+./nfc-games-x86_64.AppImage           # installér + menu
 ./nfc-games-x86_64.AppImage install   # kun installér
 ./nfc-games-x86_64.AppImage watch
+./nfc-games-x86_64.AppImage restart   # genstart watch uden systemctl
 ```
 
 ## Læg ændringer på Gitea (gratis)

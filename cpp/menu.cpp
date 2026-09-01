@@ -81,6 +81,8 @@ int cmd_menu() {
       cmd = "help";
     } else if (line == "17") {
       cmd = "version";
+    } else if (line == "18") {
+      cmd = "restart";
     } else {
       cmd = line;
     }

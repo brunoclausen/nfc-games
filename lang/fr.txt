@@ -5,12 +5,15 @@ Utilisation :
   nfc --help
   nfc -h
   nfc version
+  nfc                         menu interactif
   nfc menu                    menu interactif
   nfc <commande> [arguments]
 
 Tags et jeux :
   nfc games                   scanner les jeux Steam et raccourcis
   nfc watch                   prêt=vert ; tag posé=jaune+2 bips+lancer ; tag retiré=1 bip+stop+vert ; stop=rouge
+  nfc restart                 redémarrer watch (systemd ou pid)
+  nfc genstart                identique à nfc restart
   nfc start <jeu|appid>       lancer via Steam
   nfc start                   lire le tag et lancer le jeu lié
   nfc stop [jeu|appid]        arrêter le jeu
@@ -61,6 +64,7 @@ nfc-games — menu
  15  lang        afficher ou changer la langue
  16  help        HELP.md
  17  version     version
+ 18  restart     redémarrer watch
   0  quitter
 <<<
 menu_prompt=Numéro : 
@@ -94,6 +98,15 @@ watch_stopping=watch  arrêt
 watch_stopped=watch  arrêté (rouge, n'écoute pas)
 watch_already=watch déjà en cours (pid 
 watch_paused=watch  USB libre pour add/read
+watch_usb_reset=watch  réinit. USB (longue session)
+watch_running=watch en cours (pid 
+watch_starting=démarrage de watch...
+watch_started=watch démarré (pid 
+restarting=redémarrage de watch...
+restart_ok=watch redémarré (pid 
+restart_fail=nfc : impossible de redémarrer watch
+restart_systemd_fail=nfc : systemd n'a pas pu redémarrer watch, essai via pid
+restart_hint=exécutez nfc restart pour appliquer la langue dans watch
 usb_busy=nfc : USB occupé (réessayez)
 tag_unbound=nfc : le tag n'est lié à aucun jeu
 already_running=déjà en cours 

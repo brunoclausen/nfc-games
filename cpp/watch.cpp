@@ -4,6 +4,7 @@
 #include "steam.hpp"
 #include "tags.hpp"
 
+#include <chrono>
 #include <csignal>
 #include <fstream>
 #include <iostream>
@@ -67,22 +68,63 @@ int cmd_watch() {
   set_led_safe(*reader, Acr122::Led::Green);
   std::cout << "watch  firmware " << reader->firmware() << "\n" << std::flush;
 
-  std::string active_uid;
+  TagTracker tracker;
   std::uint32_t active_appid = 0;
-  int present = 0;
-  int absent = 0;
   int errors = 0;
+  int hold_polls = 0;
   bool deaf = true;
   using clock = std::chrono::steady_clock;
-  auto next_hold_picc = clock::now();
+  auto last_usb_open = clock::now();
+  auto idle_begin = clock::now();
+
+  auto drop_reader = [&] {
+    if (!reader) return;
+    try {
+      led_not_listening(*reader);
+    } catch (const Acr122Error&) {
+    }
+    reader.reset();
+    deaf = true;
+    errors = 0;
+    last_usb_open = clock::now();
+  };
+
+  auto bind_active = [&]() {
+    const std::string& hex = tracker.active;
+    auto store = TagStore::load(TagStore::default_path());
+    auto known = store.find_uid(hex);
+    if (!known || known->appid == 0) {
+      std::cout << t("watch_unknown_tag") << hex << "\n" << std::flush;
+      set_led_safe(*reader, Acr122::Led::Yellow);
+      active_appid = 0;
+      return;
+    }
+    std::cout << t("watch_tag_on") << hex << "  " << known->name << "\n" << std::flush;
+    signal_tag_on(*reader);
+    SteamGame game;
+    game.appid = known->appid;
+    game.name = known->name;
+    game.kind = known->kind;
+    if (auto full = SteamLibrary::cached_scan().find(std::to_string(known->appid))) {
+      game = *full;
+    }
+    for (const auto& r : SteamLibrary::running()) {
+      if (r.appid != game.appid) SteamLibrary::stop(r.appid);
+    }
+    if (!SteamLibrary::is_running(game.appid)) {
+      std::cout << t("watch_start_steam") << game.name << "  " << SteamLibrary::steam_uri(game)
+                << "\n"
+                << std::flush;
+      SteamLibrary::launch(game);
+    }
+    active_appid = game.appid;
+    set_led_safe(*reader, Acr122::Led::Yellow);
+  };
 
   while (g_watch_run) {
     if (usb_pause_requested()) {
       if (reader) {
-        led_not_listening(*reader);
-        reader.reset();
-        deaf = true;
-        present = 0;
+        drop_reader();
         std::cout << t("watch_paused") << "\n" << std::flush;
       }
       std::this_thread::sleep_for(200ms);
@@ -101,20 +143,23 @@ int cmd_watch() {
 
     std::optional<std::vector<std::uint8_t>> uid;
     bool poll_ok = true;
-    const bool holding = !active_uid.empty();
-    if (holding && clock::now() < next_hold_picc) {
-      std::this_thread::sleep_for(150ms);
-      continue;
-    }
+    const bool holding = !tracker.active.empty();
     try {
       uid = reader->try_uid(!holding);
+      if (holding) {
+        ++hold_polls;
+        const bool stale_check = (hold_polls % 4 == 0);
+        if (!uid || stale_check) {
+          auto u2 = reader->try_uid(true);
+          if (u2) uid = std::move(u2);
+        }
+      }
     } catch (const Acr122Error&) {
       uid.reset();
       poll_ok = false;
     }
 
     if (!poll_ok) {
-      present = 0;
       ++errors;
       try {
         reader->recover();
@@ -139,7 +184,7 @@ int cmd_watch() {
     if (deaf) {
       deaf = false;
       errors = 0;
-      if (active_uid.empty() && !uid) {
+      if (tracker.active.empty() && !uid) {
         set_led_safe(*reader, Acr122::Led::Green);
         std::cout << t("watch_ready") << "\n" << std::flush;
       } else {
@@ -148,92 +193,53 @@ int cmd_watch() {
       }
     }
     errors = 0;
+    if (!holding) hold_polls = 0;
 
-    if (uid) {
-      absent = 0;
-      ++present;
-      const std::string hex = Acr122::uid_hex(*uid);
-      if (present >= 2 && hex != active_uid) {
-        if (active_appid != 0) {
-          std::cout << t("watch_switch_stop") << active_appid << "\n" << std::flush;
-          SteamLibrary::stop(active_appid);
-          active_appid = 0;
-        }
-        auto store = TagStore::load(TagStore::default_path());
-        auto known = store.find_uid(hex);
-        active_uid = hex;
-        if (!known || known->appid == 0) {
-          std::cout << t("watch_unknown_tag") << hex << "\n" << std::flush;
-          set_led_safe(*reader, Acr122::Led::Yellow);
-        } else {
-          std::cout << t("watch_tag_on") << hex << "  " << known->name << "\n" << std::flush;
-          signal_tag_on(*reader);
-          SteamGame game;
-          game.appid = known->appid;
-          game.name = known->name;
-          game.kind = known->kind;
-          if (auto full = SteamLibrary::cached_scan().find(std::to_string(known->appid))) {
-            game = *full;
-          }
-          for (const auto& r : SteamLibrary::running()) {
-            if (r.appid != game.appid) SteamLibrary::stop(r.appid);
-          }
-          if (!SteamLibrary::is_running(game.appid)) {
-            std::cout << t("watch_start_steam") << game.name << "  "
-                      << SteamLibrary::steam_uri(game) << "\n"
-                      << std::flush;
-            SteamLibrary::launch(game);
-          }
-          active_appid = game.appid;
-          set_led_safe(*reader, Acr122::Led::Yellow);
-          next_hold_picc = clock::now() + 2s;
-        }
-      } else if (hex == active_uid) {
-        set_led_safe(*reader, Acr122::Led::Yellow);
-        next_hold_picc = clock::now() + 2s;
+    const std::string hex = uid ? Acr122::uid_hex(*uid) : std::string{};
+    const auto ev = tracker.feed(hex);
+    if (ev == TagTracker::Event::On || ev == TagTracker::Event::Switch) {
+      if (ev == TagTracker::Event::Switch && active_appid != 0) {
+        std::cout << t("watch_switch_stop") << active_appid << "\n" << std::flush;
+        SteamLibrary::stop(active_appid);
+        active_appid = 0;
       }
-    } else {
-      present = 0;
-      if (!active_uid.empty()) {
+      if (ev == TagTracker::Event::Switch) {
+        std::cout << t("watch_usb_reset") << "\n" << std::flush;
+        drop_reader();
         try {
-          reader->recover();
-          uid = reader->try_uid(true);
+          reader = Acr122::open();
+          last_usb_open = clock::now();
+          deaf = false;
         } catch (const Acr122Error&) {
-          uid.reset();
-        }
-        if (uid && Acr122::uid_hex(*uid) == active_uid) {
-          absent = 0;
-          set_led_safe(*reader, Acr122::Led::Yellow);
-          next_hold_picc = clock::now() + 2s;
           std::this_thread::sleep_for(250ms);
           continue;
         }
-        ++absent;
-        set_led_safe(*reader, Acr122::Led::Yellow);
-        next_hold_picc = clock::now() + 400ms;
-      } else {
-        ++absent;
       }
-      const int gone = active_uid.empty() ? 3 : 6;
-      if (absent >= gone && !active_uid.empty()) {
-        std::cout << t("watch_tag_off") << "\n" << std::flush;
-        if (active_appid != 0) {
-          std::cout << t("watch_stopping") << active_appid << "\n" << std::flush;
-          SteamLibrary::stop(active_appid);
-        }
-        active_uid.clear();
-        active_appid = 0;
-        signal_tag_off(*reader);
-        std::cout << t("watch_ready") << "\n" << std::flush;
-      } else if (active_uid.empty() && absent > 0 && absent % 20 == 0) {
-        try {
-          reader->recover();
-        } catch (const Acr122Error&) {
-        }
+      idle_begin = clock::now();
+      bind_active();
+    } else if (ev == TagTracker::Event::None && !tracker.active.empty() &&
+               active_appid == 0 && !hex.empty() && hex == tracker.active) {
+      bind_active();
+    } else if (ev == TagTracker::Event::Off) {
+      std::cout << t("watch_tag_off") << "\n" << std::flush;
+      if (active_appid != 0) {
+        std::cout << t("watch_stopping") << active_appid << "\n" << std::flush;
+        SteamLibrary::stop(active_appid);
       }
+      active_appid = 0;
+      hold_polls = 0;
+      idle_begin = clock::now();
+      signal_tag_off(*reader);
+      drop_reader();
+    } else if (tracker.active.empty() && clock::now() - last_usb_open >= 5min) {
+      std::cout << t("watch_usb_reset") << "\n" << std::flush;
+      drop_reader();
+    } else if (!tracker.active.empty()) {
+      idle_begin = clock::now();
     }
-    listen_led(*reader, !active_uid.empty());
-    std::this_thread::sleep_for(250ms);
+    if (reader) listen_led(*reader, !tracker.active.empty());
+    const auto idle_for = clock::now() - idle_begin;
+    std::this_thread::sleep_for(idle_for > 30s ? 700ms : 250ms);
   }
 
   if (active_appid != 0) {

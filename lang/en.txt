@@ -5,12 +5,15 @@ Usage:
   nfc --help
   nfc -h
   nfc version
+  nfc                         interactive menu
   nfc menu                    interactive menu
   nfc <command> [arguments]
 
 Tags and games:
   nfc games                   auto-scan Steam games and shortcuts
   nfc watch                   ready=green; tag on=yellow+2 beeps+start; tag off=1 beep+stop+green; stop=red
+  nfc restart                 restart watch (systemd or pid)
+  nfc genstart                same as nfc restart
   nfc start <game|appid>      start via Steam (games + emu shortcuts)
   nfc start                   read tag and start bound game
   nfc stop [game|appid]       stop running game
@@ -50,6 +53,7 @@ Example:
   nfc add "BloodRayne 2"
   nfc watch
   nfc lang de
+  nfc restart
 <<<
 help_missing=help file: HELP.md (not found)
 menu_text<<<
@@ -71,6 +75,7 @@ nfc-games — menu
  15  lang        show or switch language
  16  help        show HELP.md
  17  version     print version
+ 18  restart     restart watch
   0  quit
 <<<
 menu_prompt=Number: 
@@ -104,6 +109,15 @@ watch_stopping=watch  stopping
 watch_stopped=watch  stopped (red, not listening)
 watch_already=watch already running (pid 
 watch_paused=watch  USB free for add/read
+watch_usb_reset=watch  USB reset (long run)
+watch_running=watch running (pid 
+watch_starting=starting watch...
+watch_started=watch started (pid 
+restarting=restarting watch...
+restart_ok=watch restarted (pid 
+restart_fail=nfc: could not restart watch
+restart_systemd_fail=nfc: systemd could not restart watch, trying pid
+restart_hint=run nfc restart to apply the language in watch
 usb_busy=nfc: USB busy (try again)
 tag_unbound=nfc: tag is not bound to a game
 already_running=already running 

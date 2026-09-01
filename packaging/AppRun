@@ -87,12 +87,18 @@ EOF
     if [ "$skip" != 1 ]; then
       q="$(quote_exec "$BIN")"
       cat << EOF
-Actions=Watch;Menu;Games;List;UdevInstall;
+Actions=Watch;Restart;Menu;Games;List;UdevInstall;
 
 [Desktop Action Watch]
 Name=Watch
 Name[da]=Watch (lyt)
 Exec=$q watch
+
+[Desktop Action Restart]
+Name=Restart watch
+Name[da]=Genstart watch
+Name[de]=Watch neu starten
+Exec=$q restart
 
 [Desktop Action Menu]
 Name=Menu
@@ -186,7 +192,7 @@ self_install() {
 
   mkdir -p "$(dirname "$UNIT_DST")"
   exec_q="$(quote_exec "$BIN")"
-  # Always watch at login — never the interactive menu.
+  # Optional unit for `nfc restart`. Do not autostart watch in the background.
   start_cmd="$exec_q watch"
   cat > "$UNIT_DST" << EOF
 [Unit]
@@ -205,7 +211,7 @@ WantedBy=default.target
 EOF
   if command -v systemctl >/dev/null 2>&1; then
     systemctl --user daemon-reload >/dev/null 2>&1 || true
-    systemctl --user enable nfc-games.service >/dev/null 2>&1 || true
+    systemctl --user disable --now nfc-games.service >/dev/null 2>&1 || true
   fi
   if command -v update-desktop-database >/dev/null 2>&1; then
     update-desktop-database "$DATA/applications" >/dev/null 2>&1 || true
@@ -222,7 +228,7 @@ EOF
   if [ "$reexec" != 1 ]; then
     if [ "${COPIED:-0}" = 1 ] || [ "${1:-}" = "install" ]; then
       nfc_msg "installeret til $BIN" "installed to $BIN"
-      nfc_msg "startes automatisk ved login" "starts automatically at login"
+      nfc_msg "watch kører ikke i baggrunden — brug menuen" "watch does not run in the background — use the menu"
     fi
   fi
   if [ "$reexec" = 1 ]; then

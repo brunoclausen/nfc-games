@@ -5,12 +5,15 @@ Brug:
   nfc --help
   nfc -h
   nfc version
+  nfc                         interaktiv menu
   nfc menu                    interaktiv menu
   nfc <kommando> [argumenter]
 
 Tags og spil:
   nfc games                   auto-scan Steam-spil og shortcuts
   nfc watch                   klar=grøn; tag på=gul+2 beep+start; tag af=1 beep+stop+grøn; stop=rød
+  nfc restart                 genstart watch (systemd eller pid)
+  nfc genstart                samme som nfc restart
   nfc start <spil|appid>      start via Steam (spil + emu-genveje)
   nfc start                   læs tag og start bundet spil
   nfc stop [spil|appid]       stop kørende spil
@@ -50,6 +53,7 @@ Eksempel:
   nfc add "BloodRayne 2"
   nfc watch
   nfc sprog de
+  nfc restart
 <<<
 help_missing=help-fil: HELP.md (ikke fundet)
 menu_text<<<
@@ -71,6 +75,7 @@ nfc-games — menu
  15  sprog       vis eller skift sprog
  16  help        vis HELP.md
  17  version     vis versionsnummer
+ 18  restart     genstart watch
   0  afslut
 <<<
 menu_prompt=Nummer: 
@@ -104,6 +109,15 @@ watch_stopping=watch  stopper
 watch_stopped=watch  stoppet (rød, lytter ikke)
 watch_already=watch kører allerede (pid 
 watch_paused=watch  USB fri til add/read
+watch_usb_reset=watch  USB-reset (lang kørsel)
+watch_running=watch kører (pid 
+watch_starting=starter watch...
+watch_started=watch startet (pid 
+restarting=genstarter watch...
+restart_ok=watch genstartet (pid 
+restart_fail=nfc: kunne ikke genstarte watch
+restart_systemd_fail=nfc: systemd kunne ikke genstarte watch, prøver pid
+restart_hint=kør nfc restart for at bruge det nye sprog i watch
 usb_busy=nfc: USB optaget (prøv igen)
 tag_unbound=nfc: tagget er ikke bundet til et spil
 already_running=kører allerede 

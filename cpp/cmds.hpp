@@ -13,3 +13,5 @@ int cmd_add(const std::string& query);
 int cmd_remove(const std::string& key);
 int cmd_udev(const std::string& arg);
 int cmd_lang(const std::string& want);
+int cmd_restart();
+int cmd_start_watch();

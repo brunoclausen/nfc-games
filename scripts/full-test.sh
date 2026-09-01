@@ -243,7 +243,7 @@ run_cli() {
   else bad "nfc version '$out' != $ver"
   fi
   out="$("$nfc" --help 2>/dev/null || true)"
-  if [[ "$out" == *watch* && "$out" == *ACR122U* ]]; then ok "nfc --help"
+  if [[ "$out" == *watch* && "$out" == *restart* && "$out" == *ACR122U* ]]; then ok "nfc --help"
   else bad "nfc --help"
   fi
   out="$(NFC_LANG=en "$nfc" sprog 2>/dev/null || true)"
