@@ -51,5 +51,5 @@ jobs:
         run: |
           export PATH="/home/linuxbrew/.linuxbrew/bin:${PATH:-/usr/bin}"
           export PKG_CONFIG_PATH="/home/linuxbrew/.linuxbrew/lib/pkgconfig:${PKG_CONFIG_PATH:-}"
-          chmod +x scripts/full-test.sh
+          chmod +x scripts/full-test.sh scripts/build-appimage.sh packaging/AppRun
           ./scripts/full-test.sh

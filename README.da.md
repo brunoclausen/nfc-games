@@ -24,7 +24,7 @@ Det er runtime fra kilden: `./build/nfc`.
 sudo dnf install gcc-c++ cmake pkgconf-pkg-config libusb1-devel
 cmake -S . -B build && cmake --build build
 ctest --test-dir build
-./scripts/full-test.sh --hw   # filer, sprog, CLI, AppImage, ACR122U, Steam
+./scripts/full-test.sh --hw   # filer, sprog, CLI, AppImage-build, ACR122U, Steam
 ```
 
 ```bash

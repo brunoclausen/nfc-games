@@ -17,6 +17,7 @@ while [[ $# -gt 0 ]]; do
     --only) ONLY="${2:-}"; shift 2 ;;
     -h|--help)
       echo "Brug: ./scripts/full-test.sh [--hw] [--only navn]"
+      echo "Navne: files cmake langs scripts udev build appimage cli product hw steam"
       exit 0
       ;;
     *) echo "ukendt: $1" >&2; exit 2 ;;
@@ -185,8 +186,51 @@ run_build() {
   fi
 }
 
+run_appimage() {
+  start "7. AppImage"
+  local app="$ROOT/dist/nfc-games-x86_64.AppImage"
+  local log="/tmp/nfc-appimage.log"
+  if [[ ! -x "$ROOT/scripts/build-appimage.sh" ]]; then
+    bad "scripts/build-appimage.sh mangler"
+    return
+  fi
+  if [[ ! -e /usr/lib64/libusb-1.0.so.0 && ! -e /usr/lib/x86_64-linux-gnu/libusb-1.0.so.0 ]]; then
+    bad "system libusb-1.0.so.0 mangler (AppImage)"
+    return
+  fi
+  echo "  bygger AppImage (uden at installere/genstarte watch)..."
+  if NFC_AUTO_INSTALL=0 "$ROOT/scripts/build-appimage.sh" >"$log" 2>&1; then
+    ok "build-appimage.sh"
+  else
+    bad "build-appimage.sh"
+    tail -40 "$log" >&2
+    return
+  fi
+  if [[ -x "$app" ]]; then
+    ok "dist/nfc-games-x86_64.AppImage kørbar"
+  else
+    bad "dist/nfc-games-x86_64.AppImage mangler"
+    return
+  fi
+  local kind
+  kind="$(file -b "$app" 2>/dev/null || true)"
+  if echo "$kind" | grep -qi 'ELF'; then
+    ok "AppImage er ELF ($kind)"
+  else
+    bad "AppImage file: $kind"
+  fi
+  local ver out
+  ver="$(tr -d '[:space:]' < "$ROOT/VERSION")"
+  out="$(APPIMAGE_EXTRACT_AND_RUN=1 NFC_SKIP_INSTALL=1 "$app" version 2>/dev/null || true)"
+  if [[ "$out" == *"$ver"* ]]; then
+    ok "AppImage version $ver"
+  else
+    bad "AppImage version '$out' != $ver"
+  fi
+}
+
 run_cli() {
-  start "7. CLI"
+  start "8. CLI"
   local nfc="$ROOT/build/nfc"
   if [[ ! -x "$nfc" ]]; then
     bad "build/nfc mangler (kør cmake-trin)"
@@ -215,7 +259,7 @@ run_cli() {
 }
 
 run_product() {
-  start "8. Installeret produkt"
+  start "9. Installeret produkt"
   local app="$HOME/Applications/nfc-games-x86_64.AppImage"
   if [[ -x "$app" ]]; then
     ok "AppImage $app"
@@ -250,7 +294,7 @@ run_product() {
 }
 
 run_hw() {
-  start "9. Hardware (ACR122U)"
+  start "10. Hardware (ACR122U)"
   if [[ "$HW" -ne 1 ]]; then
     echo "  SKIP  hardware (CI eller ingen læser). Brug --hw"
     return
@@ -296,7 +340,7 @@ run_hw() {
 }
 
 run_games() {
-  start "10. Steam"
+  start "11. Steam"
   if [[ -n "${CI:-}${GITEA_ACTIONS:-}${GITHUB_ACTIONS:-}" ]]; then
     echo "  SKIP  Steam-scan i CI"
     return
@@ -323,6 +367,7 @@ want langs && run_langs
 want scripts && run_scripts
 want udev && run_udev_packaging
 want build && run_build
+want appimage && run_appimage
 want cli && run_cli
 want product && run_product
 want hw && run_hw
