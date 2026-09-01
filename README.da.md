@@ -60,25 +60,23 @@ chmod +x nfc-games-x86_64.AppImage
 ./nfc-games-x86_64.AppImage watch
 ```
 
-## Læg ændringer på GitHub
+## Læg ændringer på Gitea (gratis)
 
 Efter en ændring, fra denne mappe:
 
 ```bash
-./scripts/upload-github.sh --build
+./scripts/upload.sh --build
 ```
 
-Det committer, pusher koden og lægger AppImage på Releasen.
+Det committer, pusher til din Gitea og lægger AppImage på Releasen.
+Gitea kører CI (byg + test) selv — uden GitHub-betaling.
 
-Første gang (kun én gang):
+- Kode: http://192.168.1.3:3002/app/nfc-games
+- Actions: http://192.168.1.3:3002/app/nfc-games/actions
+- Release: http://192.168.1.3:3002/app/nfc-games/releases
 
-```bash
-./scripts/upload-github.sh --token ghp_DIN_NØGLE
-```
-
-Nøglen: GitHub → Settings → Developer settings → Personal access tokens
-(classic), kun rettigheden `repo`. Den gemmes i
-`~/.config/nfc-games/github.token` og kommer **ikke** med i git.
+GitHub.com er valgfrit. Kun hvis du gemmer en nøgle med
+`./scripts/upload.sh --token ghp_...`.
 
 ## Config
 

@@ -64,25 +64,21 @@ chmod +x nfc-games-x86_64.AppImage
 ./nfc-games-x86_64.AppImage watch
 ```
 
-## Upload changes to GitHub
+## Upload changes (Gitea, free)
 
 From this directory, after a change:
 
 ```bash
-./scripts/upload-github.sh --build
+./scripts/upload.sh --build
 ```
 
-That commits, pushes, and puts the AppImage on the GitHub Release.
+That commits, pushes to the home Gitea, and puts the AppImage on the
+Gitea release. Gitea runs CI (build + tests) with no GitHub billing.
 
-First time only:
+- Code: http://192.168.1.3:3002/app/nfc-games
+- Actions: http://192.168.1.3:3002/app/nfc-games/actions
 
-```bash
-./scripts/upload-github.sh --token ghp_YOUR_TOKEN
-```
-
-Create a classic token (scope `repo` only) under GitHub → Settings →
-Developer settings → Personal access tokens. It is stored in
-`~/.config/nfc-games/github.token` and is not committed.
+GitHub.com is optional (`./scripts/upload.sh --token ghp_...`).
 
 ## Config
 
