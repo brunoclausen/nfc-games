@@ -117,19 +117,23 @@ Den skal blive **grøn**. Hvis den er rød, kører watch ikke.
 
 ---
 
-## Hvis du (eller Grok) ændrer programmet
+## Automatik, test og upload
 
-Du behøver det **ikke** til hverdag.
+Detaljer på wiki’en (gem wiki’en, ikke kun denne fil):
+
+- http://192.168.1.3:3002/app/nfc-games/wiki/Automatik  
+- http://192.168.1.3:3002/app/nfc-games/wiki/Upload  
+- http://192.168.1.3:3002/app/nfc-games/wiki/Full-test  
+
+**Kort:** Watch starter selv ved login. Gitea tester og bygger AppImage selv, når koden pushes (PC tændt). GitHub-upload er sat op, men **ikke tændt** før deploy key + token.
+
+Hvis Grok ændrer programmet (ikke hverdag):
 
 ```bash
 cd ~/nfc-games
 ./scripts/full-test.sh --hw
 ./scripts/upload.sh --build
 ```
-
-Gitea tester og bygger AppImage automatisk, når koden pushes, **hvis denne PC er tændt**.
-
-GitHub opdateres først automatisk, når deploy key + lille token er sat (se README). Indtil da er Gitea sandheden.
 
 ---
 
