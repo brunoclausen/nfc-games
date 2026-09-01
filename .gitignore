@@ -9,4 +9,5 @@ compile_commands.json
 nfc
 tags.conf
 tags.conf.tmp
+github.token
 *.AppImage

@@ -64,6 +64,26 @@ chmod +x nfc-games-x86_64.AppImage
 ./nfc-games-x86_64.AppImage watch
 ```
 
+## Upload changes to GitHub
+
+From this directory, after a change:
+
+```bash
+./scripts/upload-github.sh --build
+```
+
+That commits, pushes, and puts the AppImage on the GitHub Release.
+
+First time only:
+
+```bash
+./scripts/upload-github.sh --token ghp_YOUR_TOKEN
+```
+
+Create a classic token (scope `repo` only) under GitHub → Settings →
+Developer settings → Personal access tokens. It is stored in
+`~/.config/nfc-games/github.token` and is not committed.
+
 ## Config
 
 | File | Purpose |

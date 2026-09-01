@@ -60,6 +60,26 @@ chmod +x nfc-games-x86_64.AppImage
 ./nfc-games-x86_64.AppImage watch
 ```
 
+## Læg ændringer på GitHub
+
+Efter en ændring, fra denne mappe:
+
+```bash
+./scripts/upload-github.sh --build
+```
+
+Det committer, pusher koden og lægger AppImage på Releasen.
+
+Første gang (kun én gang):
+
+```bash
+./scripts/upload-github.sh --token ghp_DIN_NØGLE
+```
+
+Nøglen: GitHub → Settings → Developer settings → Personal access tokens
+(classic), kun rettigheden `repo`. Den gemmes i
+`~/.config/nfc-games/github.token` og kommer **ikke** med i git.
+
 ## Config
 
 | Fil | Formål |
