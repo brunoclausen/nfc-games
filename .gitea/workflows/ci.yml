@@ -1,6 +1,5 @@
-# CI on Bruno's Gitea (free). Runners: local-runner with ubuntu-latest.
-# Do not use GitHub-hosted Actions.
-name: CI
+# Full test on Bruno's Gitea (free). Host runner on steam-win11.
+name: Full test
 
 on:
   push:
@@ -11,8 +10,10 @@ on:
 
 jobs:
   build:
-    name: CMake and tests
+    name: Full test
     runs-on: ubuntu-latest
+    env:
+      CI: true
     steps:
       - name: Installer byggeværktøj
         run: |
@@ -46,14 +47,9 @@ jobs:
           git fetch --depth 1 origin "${{ github.sha }}"
           git checkout FETCH_HEAD
 
-      - name: CMake
+      - name: Full test
         run: |
           export PATH="/home/linuxbrew/.linuxbrew/bin:${PATH:-/usr/bin}"
           export PKG_CONFIG_PATH="/home/linuxbrew/.linuxbrew/lib/pkgconfig:${PKG_CONFIG_PATH:-}"
-          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
-
-      - name: Byg
-        run: cmake --build build -j "$(nproc)"
-
-      - name: Test
-        run: ctest --test-dir build --output-on-failure
+          chmod +x scripts/full-test.sh
+          ./scripts/full-test.sh

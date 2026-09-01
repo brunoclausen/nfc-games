@@ -28,6 +28,7 @@ sudo dnf install gcc-c++ cmake pkgconf-pkg-config libusb1-devel
 
 cmake -S . -B build && cmake --build build
 ctest --test-dir build
+./scripts/full-test.sh --hw   # files, langs, CLI, AppImage, ACR122U, Steam
 ```
 
 ```bash

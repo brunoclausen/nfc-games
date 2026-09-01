@@ -73,6 +73,14 @@ int main() {
     check(!store.find_uid("04AABBCCDD0000"), "removed");
   }
 
+  check(normalize_uid("04aa:bb-cc dd") == "04AABBCCDD", "normalize_uid strips junk");
+  check(normalize_uid("1d2b7022960000") == "1D2B7022960000", "normalize_uid upper");
+  {
+    auto empty = TagStore::load(tmp / "missing.conf");
+    check(empty.all().empty(), "missing tags.conf is empty");
+    check(!empty.find_uid("00"), "empty store has no uid");
+  }
+
   ::setenv("XDG_CONFIG_HOME", tmp.c_str(), 1);
   ::setenv("NFC_LANG", "da", 1);
   i18n_init();
