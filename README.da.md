@@ -1,5 +1,8 @@
 # nfc-games
 
+**Download (Linux x86_64):** [release/nfc-games-x86_64.AppImage](release/nfc-games-x86_64.AppImage)  
+Gør den kørbar og kør den én gang.
+
 **Brug derhjemme:** [VEJLEDNING.md](VEJLEDNING.md)  
 På Gitea: http://192.168.1.3:3002/app/nfc-games/src/branch/main/VEJLEDNING.md
 

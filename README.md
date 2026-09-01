@@ -1,5 +1,8 @@
 # nfc-games
 
+**Download (Linux x86_64):** [release/nfc-games-x86_64.AppImage](release/nfc-games-x86_64.AppImage)  
+Make it executable and run it once.
+
 **How to use it at home (Danish):** [VEJLEDNING.md](VEJLEDNING.md)
 
 Linux helper: tap an **ACR122U** NFC tag to start or stop a **Steam** game

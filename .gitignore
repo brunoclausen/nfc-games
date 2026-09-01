@@ -11,3 +11,4 @@ tags.conf
 tags.conf.tmp
 github.token
 *.AppImage
+!release/*.AppImage
