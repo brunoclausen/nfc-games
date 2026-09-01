@@ -324,7 +324,7 @@ run_hw() {
   if pgrep -f 'nfc watch' >/dev/null 2>&1 || pgrep -f 'nfc-games-x86_64.AppImage watch' >/dev/null 2>&1; then
     ok "watch kører"
   else
-    bad "watch kører ikke"
+    echo "  SKIP  watch kører ikke (startes kun fra menu 1, ikke i baggrunden)"
   fi
   local list
   if [[ "$nfc" == *.AppImage ]]; then
