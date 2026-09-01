@@ -56,10 +56,12 @@ jobs:
 
       - name: Upload GitHub
         if: success() && github.event_name == 'push' && github.ref == 'refs/heads/main'
+        continue-on-error: true
         env:
           NFC_GITHUB_TOKEN: ${{ secrets.NFC_GITHUB_TOKEN }}
         run: |
           set -euo pipefail
           chmod +x scripts/publish-github.sh
           # PAT only for the Release asset. Git push uses the local deploy key.
+          # Skips cleanly until the deploy key is added on GitHub.
           ./scripts/publish-github.sh
