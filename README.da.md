@@ -77,13 +77,22 @@ Gitea kører CI (byg + test) selv — uden GitHub-betaling.
 - Release: http://192.168.1.3:3002/app/nfc-games/releases
 
 Når den fulde test på Gitea er grøn, lægges koden og AppImage
-automatisk på GitHub (ingen betaling — kun git + Release).
+automatisk på GitHub (ingen betaling).
 
-Første gang: gem en GitHub-nøgle (classic token, kun `repo`):
+Sikkert setup (én gang):
+
+1. Deploy key (kun dette repo, skriveadgang):  
+   https://github.com/brunoclausen/nfc-games/settings/keys  
+   Allow write access, indsæt `~/.config/nfc-games/ssh/github_nfc_games.pub`
+2. Fine-grained token kun til `nfc-games`, Contents: Read and write,  
+   så AppImage kan lægges på Releasen:
 
 ```bash
 ./scripts/upload.sh --token ghp_DIN_NØGLE
 ```
+
+Nøglen ligger kun i `~/.config/nfc-games/github.token` (rettigheder 600)
+og som Gitea-secret. Den kommer **ikke** i git.
 
 ## Config
 

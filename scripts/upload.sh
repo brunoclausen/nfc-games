@@ -40,14 +40,48 @@ while [[ $# -gt 0 ]]; do
     --build) NEED_BUILD=1; shift ;;
     --token)
       if [[ -z "${2:-}" ]]; then
-        echo "nfc: --token kræver nøglen (ghp_...)" >&2
+        echo "nfc: --token kræver nøglen (ghp_... eller github_pat_...)" >&2
         exit 2
       fi
+      case "$2" in
+        ghp_*|github_pat_*) ;;
+        *)
+          echo "nfc: det ligner ikke en GitHub-nøgle" >&2
+          exit 2
+          ;;
+      esac
       mkdir -p "$CONF"
+      chmod 700 "$CONF"
       umask 077
       printf '%s\n' "$2" > "$TOKEN_FILE"
       chmod 600 "$TOKEN_FILE"
-      echo "nfc: GitHub-nøgle gemt i $TOKEN_FILE"
+      echo "nfc: GitHub-nøgle gemt i $TOKEN_FILE (kun denne PC, ikke git)"
+      python3 - "$2" <<'PY' || echo "nfc: kunne ikke gemme Gitea-secret (upload virker stadig via filen)" >&2
+import json, sys, urllib.request, base64
+from pathlib import Path
+from urllib.parse import unquote, urlparse
+token = sys.argv[1]
+cred = Path.home().joinpath(".git-credentials")
+url = next((ln.strip() for ln in cred.read_text().splitlines() if "192.168.1.3:3002" in ln), "")
+if not url:
+    raise SystemExit(1)
+p = urlparse(url)
+auth = base64.b64encode(f"{unquote(p.username)}:{unquote(p.password)}".encode()).decode()
+body = json.dumps({"data": token}).encode()
+req = urllib.request.Request(
+    "http://192.168.1.3:3002/api/v1/repos/app/nfc-games/actions/secrets/NFC_GITHUB_TOKEN",
+    data=body,
+    method="PUT",
+    headers={
+        "Authorization": f"Basic {auth}",
+        "Accept": "application/json",
+        "Content-Type": "application/json",
+    },
+)
+with urllib.request.urlopen(req, timeout=20) as resp:
+    resp.read()
+print("nfc: Gitea-secret NFC_GITHUB_TOKEN opdateret")
+PY
       shift 2
       ;;
     --) shift; break ;;

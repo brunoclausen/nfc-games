@@ -80,13 +80,17 @@ Gitea release. Gitea runs CI (build + tests) with no GitHub billing.
 - Actions: http://192.168.1.3:3002/app/nfc-games/actions
 
 After a green Gitea full test, code and the AppImage are published to
-GitHub automatically (git + Release, no GitHub Actions billing).
+GitHub (git via a repo deploy key; Release via a fine-grained PAT).
 
-First time: save a classic token (scope `repo` only):
+One-time: add `~/.config/nfc-games/ssh/github_nfc_games.pub` as a write
+deploy key on the GitHub repo, then:
 
 ```bash
 ./scripts/upload.sh --token ghp_YOUR_TOKEN
 ```
+
+The token stays in `~/.config/nfc-games/github.token` (mode 600) and a
+Gitea secret. It is not committed.
 
 ## Config
 

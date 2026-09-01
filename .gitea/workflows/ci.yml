@@ -61,4 +61,5 @@ jobs:
         run: |
           set -euo pipefail
           chmod +x scripts/publish-github.sh
+          # PAT only for the Release asset. Git push uses the local deploy key.
           ./scripts/publish-github.sh

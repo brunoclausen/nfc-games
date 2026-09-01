@@ -1,26 +1,27 @@
 #!/usr/bin/env bash
-# After a green full test: push main/tag to GitHub and replace the AppImage on the Release.
-# Token: env GITHUB_TOKEN / NFC_GITHUB_TOKEN, or ~/.config/nfc-games/github.token
+# After a green full test: SSH-push to GitHub (deploy key) and upload AppImage (PAT).
+# Never logs the token. Never puts it in a git remote URL. Repo is fixed.
 set -euo pipefail
+set +x
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 CONF="${XDG_CONFIG_HOME:-$HOME/.config}/nfc-games"
 TOKEN_FILE="$CONF/github.token"
-GH_REPO="${NFC_GITHUB_REPO:-brunoclausen/nfc-games}"
+SSH_KEY="$CONF/ssh/github_nfc_games"
+GH_REPO="brunoclausen/nfc-games"
 APP_NAME="nfc-games-x86_64.AppImage"
 VERSION="$(tr -d '[:space:]' < "$ROOT/VERSION")"
 TAG="v${VERSION}"
 
-TOKEN="${NFC_GITHUB_TOKEN:-${GITHUB_TOKEN:-${GH_TOKEN:-}}}"
+# Do not fall back to GITHUB_TOKEN: Gitea injects its own job token under that name.
+TOKEN="${NFC_GITHUB_TOKEN:-}"
 if [[ -z "$TOKEN" && -f "$TOKEN_FILE" ]]; then
   TOKEN="$(tr -d '[:space:]' < "$TOKEN_FILE")"
 fi
-if [[ -z "$TOKEN" || ( "$TOKEN" != ghp_* && "$TOKEN" != github_pat_* ) ]]; then
-  echo "nfc: GitHub-upload sprunget over (ingen GitHub-nøgle)."
-  echo "nfc: gem en classic token (kun repo) med:"
-  echo "     ./scripts/upload.sh --token ghp_DIN_NØGLE"
-  exit 0
-fi
+case "$TOKEN" in
+  ghp_*|github_pat_*) ;;
+  *) TOKEN="" ;;
+esac
 
 APP=""
 for cand in "$ROOT/dist/$APP_NAME" \
@@ -31,7 +32,7 @@ for cand in "$ROOT/dist/$APP_NAME" \
   fi
 done
 if [[ -z "$APP" ]]; then
-  echo "nfc: ingen AppImage at lægge på GitHub (kør full-test eller build-appimage først)" >&2
+  echo "nfc: ingen AppImage at lægge på GitHub" >&2
   exit 1
 fi
 
@@ -42,25 +43,46 @@ fi
 
 unset GIT_ASKPASS SSH_ASKPASS DISPLAY || true
 export GIT_TERMINAL_PROMPT=0
-AUTH_URL="https://x-access-token:${TOKEN}@github.com/${GH_REPO}.git"
 
-echo "nfc: pusher ${SRC} → GitHub ${GH_REPO} ..."
-git -C "$SRC" -c credential.helper= push "$AUTH_URL" HEAD:main
+if [[ ! -f "$SSH_KEY" ]]; then
+  echo "nfc: mangler deploy-nøgle $SSH_KEY" >&2
+  exit 1
+fi
+export GIT_SSH_COMMAND="ssh -i ${SSH_KEY} -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes"
+
+echo "nfc: pusher til GitHub ${GH_REPO} via SSH..."
+if ! git -C "$SRC" -c credential.helper= push "git@github-nfc-games:${GH_REPO}.git" HEAD:main; then
+  echo "nfc: GitHub SSH-push fejlede. Tilføj den offentlige nøgle som Deploy key (Allow write access):" >&2
+  echo "     https://github.com/${GH_REPO}/settings/keys" >&2
+  if [[ -f "${SSH_KEY}.pub" ]]; then
+    echo "     $(cat "${SSH_KEY}.pub")" >&2
+  fi
+  exit 1
+fi
 if git -C "$SRC" rev-parse "$TAG" >/dev/null 2>&1; then
-  git -C "$SRC" -c credential.helper= push "$AUTH_URL" "$TAG" || true
+  git -C "$SRC" -c credential.helper= push "git@github-nfc-games:${GH_REPO}.git" "$TAG" || true
 fi
 echo "nfc: kode på https://github.com/${GH_REPO}"
 
+if [[ -z "$TOKEN" ]]; then
+  echo "nfc: AppImage ikke lagt på GitHub Release (mangler PAT)."
+  echo "nfc: kode er pushet. Til Release: fine-grained token kun til ${GH_REPO}, Contents: Read and write."
+  exit 0
+fi
+
 work="$(mktemp -d)"
+chmod 700 "$work"
 trap 'rm -rf "$work"' EXIT
 tmp="$work/rel.json"
+cfg="$work/curl.cfg"
+umask 077
+printf 'header = "Authorization: Bearer %s"\n' "$TOKEN" > "$cfg"
+printf 'header = "Accept: application/vnd.github+json"\n' >> "$cfg"
+printf 'header = "X-GitHub-Api-Version: 2022-11-28"\n' >> "$cfg"
+chmod 600 "$cfg"
 
 auth_curl() {
-  curl -sS \
-    -H "Authorization: Bearer ${TOKEN}" \
-    -H "Accept: application/vnd.github+json" \
-    -H "X-GitHub-Api-Version: 2022-11-28" \
-    "$@"
+  curl -sS -K "$cfg" "$@"
 }
 
 http="$(auth_curl -o "$tmp" -w '%{http_code}' \
@@ -72,12 +94,13 @@ version, tag = sys.argv[1], sys.argv[2]
 print(json.dumps({
     "tag_name": tag,
     "name": f"nfc-games {version}",
-    "body": "AppImage for Linux x86_64. Make it executable and run it once.\n\nBuilt by Gitea full test, then published here.",
+    "body": "AppImage for Linux x86_64. Make it executable and run it once.",
     "draft": False,
     "prerelease": False,
 }))
 PY
   http="$(auth_curl -o "$tmp" -w '%{http_code}' \
+    -H "Content-Type: application/json" \
     -X POST "https://api.github.com/repos/${GH_REPO}/releases" \
     --data-binary @"$work/body.json")"
 fi
@@ -104,10 +127,7 @@ if [[ -s "$work/asset-ids" ]]; then
   done < "$work/asset-ids"
 fi
 
-http="$(curl -sS -o "$tmp" -w '%{http_code}' \
-  -H "Authorization: Bearer ${TOKEN}" \
-  -H "Accept: application/vnd.github+json" \
-  -H "X-GitHub-Api-Version: 2022-11-28" \
+http="$(auth_curl -o "$tmp" -w '%{http_code}' \
   -H "Content-Type: application/octet-stream" \
   --data-binary @"$APP" \
   "https://uploads.github.com/repos/${GH_REPO}/releases/${RID}/assets?name=${APP_NAME}")"
