@@ -76,8 +76,14 @@ Gitea kører CI (byg + test) selv — uden GitHub-betaling.
 - Actions: http://192.168.1.3:3002/app/nfc-games/actions
 - Release: http://192.168.1.3:3002/app/nfc-games/releases
 
-GitHub.com er valgfrit. Kun hvis du gemmer en nøgle med
-`./scripts/upload.sh --token ghp_...`.
+Når den fulde test på Gitea er grøn, lægges koden og AppImage
+automatisk på GitHub (ingen betaling — kun git + Release).
+
+Første gang: gem en GitHub-nøgle (classic token, kun `repo`):
+
+```bash
+./scripts/upload.sh --token ghp_DIN_NØGLE
+```
 
 ## Config
 

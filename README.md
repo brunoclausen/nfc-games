@@ -79,7 +79,14 @@ Gitea release. Gitea runs CI (build + tests) with no GitHub billing.
 - Code: http://192.168.1.3:3002/app/nfc-games
 - Actions: http://192.168.1.3:3002/app/nfc-games/actions
 
-GitHub.com is optional (`./scripts/upload.sh --token ghp_...`).
+After a green Gitea full test, code and the AppImage are published to
+GitHub automatically (git + Release, no GitHub Actions billing).
+
+First time: save a classic token (scope `repo` only):
+
+```bash
+./scripts/upload.sh --token ghp_YOUR_TOKEN
+```
 
 ## Config
 

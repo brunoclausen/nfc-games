@@ -51,5 +51,14 @@ jobs:
         run: |
           export PATH="/home/linuxbrew/.linuxbrew/bin:${PATH:-/usr/bin}"
           export PKG_CONFIG_PATH="/home/linuxbrew/.linuxbrew/lib/pkgconfig:${PKG_CONFIG_PATH:-}"
-          chmod +x scripts/full-test.sh scripts/build-appimage.sh packaging/AppRun
+          chmod +x scripts/full-test.sh scripts/build-appimage.sh scripts/publish-github.sh packaging/AppRun
           ./scripts/full-test.sh
+
+      - name: Upload GitHub
+        if: success() && github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          NFC_GITHUB_TOKEN: ${{ secrets.NFC_GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          chmod +x scripts/publish-github.sh
+          ./scripts/publish-github.sh
