@@ -61,12 +61,13 @@ Det åbner **menuen**. Watch kører ikke i baggrunden. Vælg **1** for at lytte.
 | 1 | Watch (lyt efter tags) |
 | 18 | Genstart watch |
 | 2 | Vis Steam-spil |
-| 6 | Bind nyt tag til et spil |
+| 6 | Bind nyt tag til et spil og skriv navn |
 | 7 | Læs tag |
 | 8 | Vis gemte tags |
 | 9 | Fjern tag |
 | 13 | Vis læser-firmware (skal ligne ACR122U216) |
 | 15 | Sprog |
+| 19 | Skriv spilnavn på tagget (telefonen) |
 | 0 | Afslut |
 
 ---
@@ -79,9 +80,28 @@ Spillet skal **allerede** ligge i Steam (eller som non-Steam-genvej).
 2. Vælg **6**.  
 3. Skriv spillets **navn** (eller Steam-appid hvis flere hedder det samme).  
 4. Læg det tomme tag på læseren, når den beder om det.  
-5. Tagget er nu bundet.
+5. Tagget er nu bundet, og spilnavnet skrives på tagget.
 
 Bind **ikke** tags til `boot-windows` eller Proton/runtime-værktøjer.
+
+---
+
+## Telefonen viser at tagget er tomt
+
+Det er **normalt**, indtil navnet er skrevet på tagget.
+
+nfc-games starter spil ud fra taggets **UID** (gemt i `tags.conf` på PC’en). En telefon kigger efter **NDEF-tekst** på selve tagget. De tre tags du allerede har, blev kun bundet — der blev ikke skrevet tekst.
+
+Sådan skriver du navnet på et **eksisterende** tag:
+
+1. Åbn menuen.  
+2. Vælg **19** (`nfc write`).  
+3. Læg tagget på læseren.  
+4. Scan med telefonen igen — den skal vise spilnavnet.
+
+Nye tags får navnet skrevet automatisk, når du bruger **6** (`nfc add`).
+
+Hvis skrivning fejler, virker PC’en stadig (UID). Så er tagget typisk ikke NTAG/Ultralight, eller det er låst. Fudan-kloner (UID der starter med `1D`) kan godt være Ultralight — `nfc write` skal kunne skrive dem.
 
 ---
 

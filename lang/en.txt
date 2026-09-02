@@ -18,8 +18,9 @@ Tags and games:
   nfc start                   read tag and start bound game
   nfc stop [game|appid]       stop running game
   nfc lock                    show which game is locked/running
-  nfc add <game|appid>        find game, read tag, bind them
-  nfc read                    read tag (UID + bound game)
+  nfc add <game|appid>        find game, read tag, bind and write name
+  nfc write                   write game name onto the tag (so the phone is not empty)
+  nfc read                    read tag (UID + bound game + NDEF)
   nfc list                    show saved tags (tags.conf)
   nfc remove <game|uid>       remove saved tag
   nfc remove                  read tag and remove it if saved
@@ -63,7 +64,7 @@ nfc-games — menu
   3  start       start game (name/appid, or empty = read tag)
   4  stop        stop game
   5  lock        show running/locked game
-  6  add         bind tag to game
+  6  add         bind tag to game and write name
   7  read        read tag
   8  list        show saved tags
   9  remove      remove tag
@@ -76,6 +77,7 @@ nfc-games — menu
  16  help        show HELP.md
  17  version     print version
  18  restart     restart watch
+ 19  write       write game name onto the tag
   0  quit
 <<<
 menu_prompt=Number: 
@@ -161,3 +163,12 @@ udev_replug=unplug USB and plug it back in
 udev_ok=udev rule installed
 udev_fail=nfc: could not install udev rule
 udev_helper_missing=nfc: udev installer missing from AppImage
+ndef_text=NDEF 
+ndef_empty=NDEF  (empty — phone shows empty until you run nfc write)
+ndef_written=written to tag: 
+ndef_ok=the phone can now show the game name
+ndef_write_fail=could not write NDEF to the tag: 
+ndef_unbound=nfc: tag is not bound. Use nfc add first
+ndef_not_type2=tag is not NTAG/Ultralight (cannot write text)
+ndef_too_small=tag is too small for the game name
+ndef_readonly=tag is write-protected

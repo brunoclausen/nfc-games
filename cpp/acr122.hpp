@@ -45,6 +45,10 @@ class Acr122 {
   // Wait until a tag is seen. timeout=0 waits forever.
   std::vector<uint8_t> wait_uid(std::chrono::milliseconds timeout);
 
+  // Type 2 / NTAG user memory. Empty optional = no NDEF text (phone shows empty).
+  std::optional<std::string> read_ndef_text();
+  void write_ndef_text(const std::string& text);
+
   static std::string uid_hex(const std::vector<uint8_t>& uid);
 
  private:
@@ -60,6 +64,10 @@ class Acr122 {
 
   std::vector<uint8_t> xfr(const std::vector<uint8_t>& apdu, int timeout_ms);
   ApduReply transmit(const std::vector<uint8_t>& apdu, int timeout_ms);
+  std::vector<uint8_t> read_binary(uint8_t page, uint8_t len);
+  void write_page(uint8_t page, const uint8_t data[4]);
+  std::optional<std::vector<uint8_t>> ntag_version();
+  std::optional<std::vector<uint8_t>> pn532_payload(const ApduReply& r, uint8_t cmd);
   void icc_power_on();
   void drain();
   std::optional<std::vector<uint8_t>> parse_inlist(const std::vector<uint8_t>& data);

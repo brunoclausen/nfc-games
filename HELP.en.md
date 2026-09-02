@@ -23,9 +23,10 @@ cmake -S . -B build && cmake --build build
 | `nfc start` | Read tag and start the bound game |
 | `nfc lock` | Show which game is running/locked |
 | `nfc stop` | Stop the running game |
-| `nfc add "Silent Hill 4"` | Find the game, wait for a tag, bind tag → game |
+| `nfc add "Silent Hill 4"` | Find the game, wait for a tag, bind tag → game and write the name (NDEF) |
 | `nfc add 3640596865` | Same, but with appid (when several share a name) |
-| `nfc read` | Read tag, show UID and bound game |
+| `nfc write` | Write the bound game name onto the tag so a phone is not empty |
+| `nfc read` | Read tag, show UID, bound game and NDEF text |
 | `nfc list` | Show saved tags |
 | `nfc remove "Silent Hill 4"` | Remove tag from the list |
 | `nfc remove` | Read tag and remove it if it is saved |

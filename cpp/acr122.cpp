@@ -1,5 +1,6 @@
 #include "acr122.hpp"
 #include "i18n.hpp"
+#include "ndef.hpp"
 
 #include <libusb.h>
 
@@ -423,4 +424,134 @@ void Acr122::blink(Led blink_led, Led final, std::chrono::milliseconds on,
       static_cast<int>((on.count() + off.count()) * repeats) + 1500;
   (void)xfr({0xFF, 0x00, 0x40, p2, 0x04, t1, t2, static_cast<uint8_t>(repeats), link},
             timeout);
+}
+
+std::optional<std::vector<uint8_t>> Acr122::pn532_payload(const ApduReply& r, uint8_t cmd) {
+  if (r.sw1 != 0x90 || r.data.size() < 3) return std::nullopt;
+  const uint8_t* p = r.data.data();
+  std::size_t n = r.data.size();
+  if (p[0] == 0xD5 && p[1] == cmd) {
+    if (p[2] != 0x00) return std::nullopt;
+    return std::vector<uint8_t>(p + 3, p + n);
+  }
+  return r.data;
+}
+
+std::vector<uint8_t> Acr122::read_binary(uint8_t page, uint8_t len) {
+  if (len == 0) len = 4;
+  auto take = [len](std::vector<uint8_t> data) {
+    if (data.size() > len) data.resize(len);
+    return data;
+  };
+
+  auto acs = transmit({0xFF, 0xB0, 0x00, page, len}, 1000);
+  if (acs.sw1 == 0x90 && acs.data.size() >= 4) return take(std::move(acs.data));
+  drain();
+
+  // Raw Type 2 READ (4 pages). Works on Ultralight/NTAG without a PN532 target.
+  auto thru = transmit({0xFF, 0x00, 0x00, 0x00, 0x04, 0xD4, 0x42, 0x30, page}, 1500);
+  if (auto payload = pn532_payload(thru, 0x43); payload && payload->size() >= 4) {
+    return take(std::move(*payload));
+  }
+  drain();
+
+  auto r = transmit({0xFF, 0x00, 0x00, 0x00, 0x05, 0xD4, 0x40, 0x01, 0x30, page}, 1500);
+  auto payload = pn532_payload(r, 0x41);
+  if (!payload || payload->size() < 4) {
+    throw Acr122Error(t("ndef_not_type2"));
+  }
+  return take(std::move(*payload));
+}
+
+void Acr122::write_page(uint8_t page, const uint8_t data[4]) {
+  auto acs = transmit(
+      {0xFF, 0xD6, 0x00, page, 0x04, data[0], data[1], data[2], data[3]}, 1500);
+  if (acs.sw1 == 0x90) return;
+  drain();
+
+  auto thru = transmit({0xFF, 0x00, 0x00, 0x00, 0x07, 0xD4, 0x42, 0xA2, page,
+                        data[0], data[1], data[2], data[3]},
+                       1500);
+  if (thru.sw1 == 0x90) {
+    if (pn532_payload(thru, 0x43)) return;
+    if (thru.data.size() >= 3 && thru.data[0] == 0xD5 && thru.data[1] == 0x43 &&
+        (thru.data[2] == 0x00 || thru.data[2] == 0x0A)) {
+      return;
+    }
+  }
+  drain();
+
+  auto r = transmit({0xFF, 0x00, 0x00, 0x00, 0x08, 0xD4, 0x40, 0x01, 0xA2, page,
+                     data[0], data[1], data[2], data[3]},
+                    1500);
+  if (r.sw1 == 0x90) {
+    if (pn532_payload(r, 0x41)) return;
+    if (r.data.empty() || r.data[0] == 0x0A) return;
+  }
+  throw Acr122Error(t("ndef_not_type2"));
+}
+
+std::optional<std::vector<uint8_t>> Acr122::ntag_version() {
+  try {
+    auto r = transmit({0xFF, 0x00, 0x00, 0x00, 0x03, 0xD4, 0x42, 0x60}, 1500);
+    auto payload = pn532_payload(r, 0x43);
+    if (payload && payload->size() >= 8) return payload;
+  } catch (const Acr122Error&) {
+    drain();
+  }
+  return std::nullopt;
+}
+
+std::optional<std::string> Acr122::read_ndef_text() {
+  std::vector<uint8_t> head;
+  try {
+    head = read_binary(0, 16);
+  } catch (const Acr122Error&) {
+    return std::nullopt;
+  }
+  if (head.size() < 16) return std::nullopt;
+  auto cc = parse_type2_cc(head.data() + 12);
+  std::uint16_t want = cc.valid ? cc.data_size : 144;
+  if (auto ver = ntag_version()) want = ntag_user_bytes_from_version(*ver);
+  if (cc.valid && cc.data_size >= 16) want = std::min(want, cc.data_size);
+  want = std::min<std::uint16_t>(want, 256);
+
+  std::vector<uint8_t> user;
+  user.reserve(want);
+  uint8_t page = 4;
+  while (user.size() < want && page < 80) {
+    auto chunk = read_binary(page, 16);
+    if (chunk.empty()) break;
+    user.insert(user.end(), chunk.begin(), chunk.end());
+    const auto step = std::max<std::size_t>(1, chunk.size() / 4);
+    page = static_cast<uint8_t>(page + step);
+  }
+  if (user.size() > want) user.resize(want);
+  return decode_type2_ndef_text(user);
+}
+
+void Acr122::write_ndef_text(const std::string& text) {
+  auto head = read_binary(0, 16);
+  if (head.size() < 16) throw Acr122Error(t("ndef_not_type2"));
+  auto cc = parse_type2_cc(head.data() + 12);
+  if (cc.valid && !cc.writable) throw Acr122Error(t("ndef_readonly"));
+
+  std::uint16_t user = 144;
+  if (auto ver = ntag_version()) user = ntag_user_bytes_from_version(*ver);
+  if (cc.valid && cc.data_size >= 16) user = cc.data_size;
+  user = std::min<std::uint16_t>(user, 888);
+
+  std::string lang = current_lang_code();
+  auto image = encode_type2_ndef_text(text, lang, user);
+  if (image.empty()) throw Acr122Error(t("ndef_too_small"));
+
+  if (!cc.valid) {
+    auto newcc = make_type2_cc(user);
+    write_page(3, newcc.data());
+    std::this_thread::sleep_for(std::chrono::milliseconds{8});
+  }
+  for (std::size_t i = 0; i < image.size(); i += 4) {
+    write_page(static_cast<uint8_t>(4 + i / 4), image.data() + i);
+    std::this_thread::sleep_for(std::chrono::milliseconds{8});
+  }
 }

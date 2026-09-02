@@ -23,9 +23,10 @@ cmake -S . -B build && cmake --build build
 | `nfc start` | Læs tag og start det bundne spil |
 | `nfc lock` | Vis hvilket spil der kører/er låst |
 | `nfc stop` | Stop det kørende spil |
-| `nfc add "Silent Hill 4"` | Find spillet, vent på tag, bind tag → spil |
+| `nfc add "Silent Hill 4"` | Find spillet, vent på tag, bind tag → spil og skriv navn (NDEF) |
 | `nfc add 3640596865` | Samme, men med appid (når flere har samme navn) |
-| `nfc read` | Læs tag, vis UID og bundet spil |
+| `nfc write` | Skriv det bundne spilnavn på tagget, så telefonen ikke viser tom |
+| `nfc read` | Læs tag, vis UID, bundet spil og NDEF-tekst |
 | `nfc list` | Vis gemte tags |
 | `nfc remove "Silent Hill 4"` | Fjern tag fra listen |
 | `nfc remove` | Læs tag og fjern det, hvis det er gemt |

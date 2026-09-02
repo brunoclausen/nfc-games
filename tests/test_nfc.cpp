@@ -1,4 +1,5 @@
 #include "i18n.hpp"
+#include "ndef.hpp"
 #include "steam.hpp"
 #include "tags.hpp"
 #include "watch.hpp"
@@ -89,6 +90,37 @@ int main() {
     check(tr.active.empty(), "active cleared on off");
   }
 
+  {
+    std::uint8_t blank[4] = {0, 0, 0, 0};
+    check(!parse_type2_cc(blank).valid, "blank CC is invalid");
+    std::uint8_t ntag213[4] = {0xE1, 0x10, 0x12, 0x00};
+    auto cc = parse_type2_cc(ntag213);
+    check(cc.valid && cc.writable && cc.data_size == 144, "NTAG213 CC");
+    std::uint8_t ro[4] = {0xE1, 0x10, 0x12, 0x0F};
+    check(parse_type2_cc(ro).valid && !parse_type2_cc(ro).writable, "read-only CC");
+    auto made = make_type2_cc(144);
+    check(made[0] == 0xE1 && made[2] == 0x12 && made[3] == 0x00, "make NTAG213 CC");
+    std::vector<std::uint8_t> ver213{0x00, 0x04, 0x04, 0x02, 0x01, 0x00, 0x0F, 0x03};
+    check(ntag_user_bytes_from_version(ver213) == 144, "GET_VERSION NTAG213");
+    std::vector<std::uint8_t> ver216{0x00, 0x04, 0x04, 0x02, 0x01, 0x00, 0x13, 0x03};
+    check(ntag_user_bytes_from_version(ver216) == 888, "GET_VERSION NTAG216");
+
+    auto empty_tlv = std::vector<std::uint8_t>{0x03, 0x00, 0xFE};
+    check(!decode_type2_ndef_text(empty_tlv), "empty NDEF is null");
+    auto factory_ul = std::vector<std::uint8_t>{0x01, 0x03, 0xA0, 0x0C, 0x34, 0x03, 0x00, 0xFE};
+    check(!decode_type2_ndef_text(factory_ul), "factory Ultralight empty NDEF is null");
+    auto img = encode_type2_ndef_text("Silent Hill 4: The Room", "da", 144);
+    check(!img.empty() && img[0] == 0x03 && img.back() != 0x03, "encode Type 2 image");
+    auto got = decode_type2_ndef_text(img);
+    check(got && *got == "Silent Hill 4: The Room", "NDEF text roundtrip");
+    auto long_name = encode_type2_ndef_text(
+        "Resident Evil - Code - Veronica X (USA) (Disc 1).nkit", "da", 144);
+    auto long_got = decode_type2_ndef_text(long_name);
+    check(long_got && long_got->find("Resident Evil") == 0, "long game name fits NTAG213");
+    auto tiny = encode_type2_ndef_text("Hello", "en", 8);
+    check(tiny.empty(), "too-small tag yields empty encode");
+  }
+
   check(normalize_uid("04aa:bb-cc dd") == "04AABBCCDD", "normalize_uid strips junk");
   check(normalize_uid("1d2b7022960000") == "1D2B7022960000", "normalize_uid upper");
   {
@@ -101,6 +133,7 @@ int main() {
   ::setenv("NFC_LANG", "da", 1);
   i18n_init();
   check(std::string(t("wait_tag")).find("læg") != std::string::npos, "danish wait_tag");
+  check(std::string(t("ndef_empty")).find("tom") != std::string::npos, "danish ndef_empty");
   check(set_lang("en"), "set_lang en");
   check(std::string(t("wait_tag")).find("place") != std::string::npos, "english wait_tag");
   check(std::string(t("watch_already")).find("already") != std::string::npos, "english watch_already");

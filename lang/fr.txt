@@ -18,8 +18,9 @@ Tags et jeux :
   nfc start                   lire le tag et lancer le jeu lié
   nfc stop [jeu|appid]        arrêter le jeu
   nfc lock                    afficher le jeu verrouillé/en cours
-  nfc add <jeu|appid>         trouver le jeu, lire le tag, lier
-  nfc read                    lire le tag (UID + jeu)
+  nfc add <jeu|appid>         trouver le jeu, lire le tag, lier et écrire le nom
+  nfc write                   écrire le nom du jeu sur le tag (le téléphone n'est plus vide)
+  nfc read                    lire le tag (UID + jeu + NDEF)
   nfc list                    tags enregistrés
   nfc remove <jeu|uid>        retirer un tag
   nfc remove                  lire le tag et le retirer
@@ -52,7 +53,7 @@ nfc-games — menu
   3  start       lancer un jeu (nom/appid, vide = lire le tag)
   4  stop        arrêter le jeu
   5  lock        jeu en cours/verrouillé
-  6  add         lier un tag à un jeu
+  6  add         lier un tag à un jeu et écrire le nom
   7  read        lire le tag
   8  list        tags enregistrés
   9  remove      retirer un tag
@@ -65,6 +66,7 @@ nfc-games — menu
  16  help        HELP.md
  17  version     version
  18  restart     redémarrer watch
+ 19  write       écrire le nom du jeu sur le tag
   0  quitter
 <<<
 menu_prompt=Numéro : 
@@ -150,3 +152,12 @@ udev_replug=débrancher l'USB et rebrancher
 udev_ok=règle udev installée
 udev_fail=nfc : impossible d'installer la règle udev
 udev_helper_missing=nfc : installateur udev absent de l'AppImage
+ndef_text=NDEF 
+ndef_empty=NDEF  (vide — le téléphone affiche vide jusqu'à nfc write)
+ndef_written=écrit sur le tag : 
+ndef_ok=le téléphone peut maintenant afficher le nom du jeu
+ndef_write_fail=impossible d'écrire NDEF sur le tag : 
+ndef_unbound=nfc : le tag n'est pas lié. Utilisez nfc add d'abord
+ndef_not_type2=le tag n'est pas NTAG/Ultralight (pas de texte)
+ndef_too_small=le tag est trop petit pour le nom du jeu
+ndef_readonly=le tag est en lecture seule

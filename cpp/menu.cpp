@@ -83,6 +83,8 @@ int cmd_menu() {
       cmd = "version";
     } else if (line == "18") {
       cmd = "restart";
+    } else if (line == "19") {
+      cmd = "write";
     } else {
       cmd = line;
     }

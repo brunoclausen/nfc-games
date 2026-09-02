@@ -18,8 +18,9 @@ Brikker og spill:
   nfc start                   les brikke og start bundet spill
   nfc stop [spill|appid]      stopp spill
   nfc lock                    vis låst/kjørende spill
-  nfc add <spill|appid>       finn spill, les brikke, bind
-  nfc read                    les brikke (UID + spill)
+  nfc add <spill|appid>       finn spill, les brikke, bind og skriv navn
+  nfc write                   skriv spillnavn på brikken (så telefonen ikke viser tom)
+  nfc read                    les brikke (UID + spill + NDEF)
   nfc list                    lagrede brikker
   nfc remove <spill|uid>      fjern brikke
   nfc remove                  les brikke og fjern
@@ -52,7 +53,7 @@ nfc-games — meny
   3  start       start spill (navn/appid, tomt = les brikke)
   4  stop        stopp spill
   5  lock        kjørende/låst spill
-  6  add         bind brikke til spill
+  6  add         bind brikke til spill og skriv navn
   7  read        les brikke
   8  list        lagrede brikker
   9  remove      fjern brikke
@@ -65,6 +66,7 @@ nfc-games — meny
  16  help        HELP.md
  17  version     versjon
  18  restart     start watch på nytt
+ 19  write       skriv spillnavn på brikken
   0  avslutt
 <<<
 menu_prompt=Nummer: 
@@ -150,3 +152,12 @@ udev_replug=trekk ut USB og sett i igjen
 udev_ok=udev-regel installert
 udev_fail=nfc: kunne ikke installere udev-regel
 udev_helper_missing=nfc: udev-installer mangler i AppImage
+ndef_text=NDEF 
+ndef_empty=NDEF  (tom — telefonen viser tom til du kjører nfc write)
+ndef_written=skrevet på brikke: 
+ndef_ok=telefonen kan nå vise spillnavnet
+ndef_write_fail=kunne ikke skrive NDEF på brikken: 
+ndef_unbound=nfc: brikken er ikke bundet. Bruk nfc add først
+ndef_not_type2=brikken er ikke NTAG/Ultralight (kan ikke skrive tekst)
+ndef_too_small=brikken er for liten til spillnavnet
+ndef_readonly=brikken er skrivebeskyttet

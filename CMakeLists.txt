@@ -44,6 +44,7 @@ add_executable(nfc
   cpp/cmds.cpp
   cpp/menu.cpp
   cpp/acr122.cpp
+  cpp/ndef.cpp
   cpp/tags.cpp
   cpp/steam.cpp
   cpp/i18n.cpp
@@ -99,7 +100,7 @@ install(FILES packaging/nfc-games.desktop DESTINATION ${CMAKE_INSTALL_DATADIR}/a
 install(FILES packaging/nfc-games.png DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/256x256/apps)
 
 enable_testing()
-add_executable(nfc_tests tests/test_nfc.cpp cpp/steam.cpp cpp/tags.cpp cpp/i18n.cpp)
+add_executable(nfc_tests tests/test_nfc.cpp cpp/steam.cpp cpp/tags.cpp cpp/i18n.cpp cpp/ndef.cpp)
 target_include_directories(nfc_tests PRIVATE cpp)
 target_compile_definitions(nfc_tests PRIVATE NFC_VERSION="${NFC_VERSION}")
 add_test(NAME nfc_tests COMMAND nfc_tests)

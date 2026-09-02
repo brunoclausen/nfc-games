@@ -40,6 +40,7 @@ ctest --test-dir build
 ./build/nfc firmware   # expect ACR122U216 or similar
 ./build/nfc games
 ./build/nfc add 123456  # bind a tag; use appid if names clash
+./build/nfc write       # write the game name onto an already bound tag
 ./build/nfc watch       # green = ready; tag on = yellow+2 beeps+start; tag off = 1 beep+green; not running = red
 ./build/nfc udev install  # ACR122U udev rule (pkexec, once)
 ```

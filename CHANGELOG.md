@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.0.7
+
+- Type 2 NDEF read/write on ACR122U also uses raw Ultralight commands (Fudan NTAG clones)
+- `nfc write` no longer reports "not NTAG" when the tag is Ultralight but ACS PICC read fails
+
+## 1.0.6
+
+- Write the game name as NDEF text onto NTAG/Ultralight tags (`nfc add` and `nfc write`)
+- `nfc read` shows NDEF so a phone no longer looks at an empty tag after write
+- Menu item 19 writes the bound name onto a tag already in tags.conf
+
 ## 1.0.5
 
 - ACR122U USB reset after a long idle, after tag-off, and when switching tags

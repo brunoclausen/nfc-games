@@ -164,12 +164,41 @@ int cmd_list() {
   return 0;
 }
 
+namespace {
+
+void print_ndef(Acr122& reader) {
+  try {
+    if (auto text = reader.read_ndef_text()) {
+      std::cout << t("ndef_text") << *text << "\n";
+    } else {
+      std::cout << t("ndef_empty") << "\n";
+    }
+  } catch (const Acr122Error&) {
+    std::cout << t("ndef_empty") << "\n";
+  }
+}
+
+int write_ndef_game(Acr122& reader, const std::string& name) {
+  try {
+    reader.write_ndef_text(name);
+    std::cout << t("ndef_written") << name << "\n";
+    std::cout << t("ndef_ok") << "\n";
+    return 0;
+  } catch (const Acr122Error& e) {
+    std::cerr << t("ndef_write_fail") << e.what() << "\n";
+    return 1;
+  }
+}
+
+}  // namespace
+
 int cmd_read() {
   auto store = TagStore::load(TagStore::default_path());
   UsbPause pause;
   auto reader = open_reader();
   auto uid = wait_for_tag(reader);
   print_tag(Acr122::uid_hex(uid), store);
+  print_ndef(reader);
   led_not_listening(reader);
   return 0;
 }
@@ -185,10 +214,29 @@ int cmd_add(const std::string& query) {
   auto uid = wait_for_tag(reader);
   const std::string hex = Acr122::uid_hex(uid);
   store.upsert(Tag{hex, game.name, game.appid, game.kind});
+  (void)write_ndef_game(reader, game.name);
   led_not_listening(reader);
   std::cout << t("saved") << game.name << "  " << hex << "\n";
   std::cout << t("file") << store.path().string() << "\n";
   return 0;
+}
+
+int cmd_write() {
+  auto store = TagStore::load(TagStore::default_path());
+  UsbPause pause;
+  auto reader = open_reader();
+  auto uid = wait_for_tag(reader);
+  const std::string hex = Acr122::uid_hex(uid);
+  print_tag(hex, store);
+  auto known = store.find_uid(hex);
+  if (!known || known->name.empty()) {
+    reader.set_led(Acr122::Led::Red);
+    std::cerr << t("ndef_unbound") << "\n";
+    return 1;
+  }
+  const int rc = write_ndef_game(reader, known->name);
+  led_not_listening(reader);
+  return rc;
 }
 
 int cmd_remove(const std::string& key) {
@@ -485,6 +533,7 @@ int nfc_run(const std::string& cmd, const std::string& arg) {
   if (cmd == "stop" || cmd == "luk") return cmd_stop(arg);
   if (cmd == "lock" || cmd == "laas" || cmd == "lås") return cmd_lock();
   if (cmd == "read" || cmd == "læs" || cmd == "laes") return cmd_read();
+  if (cmd == "write" || cmd == "skriv") return cmd_write();
   if (cmd == "add" || cmd == "tilfoj" || cmd == "tilføj") {
     if (arg.empty()) {
       usage();

@@ -18,8 +18,9 @@ Tags und Spiele:
   nfc start                   Tag lesen und gebundenes Spiel starten
   nfc stop [spiel|appid]      laufendes Spiel beenden
   nfc lock                    gesperrtes/laufendes Spiel anzeigen
-  nfc add <spiel|appid>       Spiel finden, Tag lesen, binden
-  nfc read                    Tag lesen (UID + Spiel)
+  nfc add <spiel|appid>       Spiel finden, Tag lesen, binden und Namen schreiben
+  nfc write                   Spielname auf das Tag schreiben (Telefon nicht leer)
+  nfc read                    Tag lesen (UID + Spiel + NDEF)
   nfc list                    gespeicherte Tags
   nfc remove <spiel|uid>      Tag entfernen
   nfc remove                  Tag lesen und entfernen
@@ -56,7 +57,7 @@ nfc-games — Menü
   3  start       Spiel starten (Name/appid, leer = Tag lesen)
   4  stop        Spiel beenden
   5  lock        laufendes/gesperrtes Spiel
-  6  add         Tag an Spiel binden
+  6  add         Tag an Spiel binden und Namen schreiben
   7  read        Tag lesen
   8  list        gespeicherte Tags
   9  remove      Tag entfernen
@@ -69,6 +70,7 @@ nfc-games — Menü
  16  help        HELP.md
  17  version     Version
  18  restart     Watch neu starten
+ 19  write       Spielname auf das Tag schreiben
   0  beenden
 <<<
 menu_prompt=Nummer: 
@@ -154,3 +156,12 @@ udev_replug=USB abziehen und wieder einstecken
 udev_ok=udev-Regel installiert
 udev_fail=nfc: udev-Regel konnte nicht installiert werden
 udev_helper_missing=nfc: udev-Installer fehlt im AppImage
+ndef_text=NDEF 
+ndef_empty=NDEF  (leer — das Telefon zeigt leer, bis nfc write)
+ndef_written=auf Tag geschrieben: 
+ndef_ok=das Telefon kann jetzt den Spielnamen zeigen
+ndef_write_fail=NDEF konnte nicht geschrieben werden: 
+ndef_unbound=nfc: Tag ist nicht gebunden. Zuerst nfc add
+ndef_not_type2=Tag ist kein NTAG/Ultralight (kein Text)
+ndef_too_small=Tag ist zu klein für den Spielnamen
+ndef_readonly=Tag ist schreibgeschützt

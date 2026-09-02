@@ -37,6 +37,7 @@ ctest --test-dir build
 ./build/nfc firmware
 ./build/nfc games
 ./build/nfc add 123456
+./build/nfc write          # skriv spilnavn på et allerede bundet tag
 ./build/nfc watch
 ./build/nfc udev install
 ```

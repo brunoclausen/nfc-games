@@ -18,8 +18,9 @@ Taggar och spel:
   nfc start                   läs tagg och starta bundet spel
   nfc stop [spel|appid]       stoppa spel
   nfc lock                    visa låst/körande spel
-  nfc add <spel|appid>        hitta spel, läs tagg, bind
-  nfc read                    läs tagg (UID + spel)
+  nfc add <spel|appid>        hitta spel, läs tagg, bind och skriv namn
+  nfc write                   skriv spelnamn på taggen (så telefonen inte är tom)
+  nfc read                    läs tagg (UID + spel + NDEF)
   nfc list                    sparade taggar
   nfc remove <spel|uid>       ta bort tagg
   nfc remove                  läs tagg och ta bort
@@ -52,7 +53,7 @@ nfc-games — meny
   3  start       starta spel (namn/appid, tomt = läs tagg)
   4  stop        stoppa spel
   5  lock        körande/låst spel
-  6  add         bind tagg till spel
+  6  add         bind tagg till spel och skriv namn
   7  read        läs tagg
   8  list        sparade taggar
   9  remove      ta bort tagg
@@ -65,6 +66,7 @@ nfc-games — meny
  16  help        HELP.md
  17  version     version
  18  restart     starta om watch
+ 19  write       skriv spelnamn på taggen
   0  avsluta
 <<<
 menu_prompt=Nummer: 
@@ -150,3 +152,12 @@ udev_replug=dra ur USB och sätt i igen
 udev_ok=udev-regel installerad
 udev_fail=nfc: kunde inte installera udev-regel
 udev_helper_missing=nfc: udev-installer saknas i AppImage
+ndef_text=NDEF 
+ndef_empty=NDEF  (tom — telefonen visar tom tills nfc write)
+ndef_written=skrivet på tagg: 
+ndef_ok=telefonen kan nu visa spelnamnet
+ndef_write_fail=kunde inte skriva NDEF på taggen: 
+ndef_unbound=nfc: taggen är inte bunden. Använd nfc add först
+ndef_not_type2=taggen är inte NTAG/Ultralight (kan inte skriva text)
+ndef_too_small=taggen är för liten för spelnamnet
+ndef_readonly=taggen är skrivskyddad
