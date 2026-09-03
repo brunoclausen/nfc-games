@@ -1,0 +1,58 @@
+# Build the AppImage and publish it to a GitHub Release on each version tag.
+# Uses the built-in GITHUB_TOKEN - no personal token needed.
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build and release AppImage
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            cmake \
+            g++ \
+            make \
+            pkg-config \
+            libusb-1.0-0-dev \
+            imagemagick
+
+      - name: Build AppImage
+        id: build
+        run: |
+          set -euo pipefail
+          # Ubuntu puts libusb under /usr/lib/x86_64-linux-gnu, not /usr/lib64.
+          if [[ ! -e /usr/lib64/libusb-1.0.so.0 && -e /usr/lib/x86_64-linux-gnu/libusb-1.0.so.0 ]]; then
+            sudo mkdir -p /usr/lib64
+            sudo ln -s /usr/lib/x86_64-linux-gnu/libusb-1.0.so.0 /usr/lib64/libusb-1.0.so.0
+            if [[ -e /usr/lib/x86_64-linux-gnu/libusb-1.0.so.0.2 ]]; then
+              sudo ln -s /usr/lib/x86_64-linux-gnu/libusb-1.0.so.0.2 /usr/lib64/libusb-1.0.so.0.2
+            fi
+          fi
+          NFC_AUTO_INSTALL=0 VERSION="${GITHUB_REF_NAME#v}" ./scripts/build-appimage.sh
+          ls -lh dist/nfc-games-x86_64.AppImage
+          echo "asset=dist/nfc-games-x86_64.AppImage" >> "$GITHUB_OUTPUT"
+
+      - name: Create Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: nfc-games ${{ github.ref_name }}
+          body: AppImage for Linux x86_64. Make it executable and run it once.
+          files: ${{ steps.build.outputs.asset }}
+          draft: false
+          prerelease: false
