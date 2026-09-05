@@ -44,8 +44,14 @@ install -m 0755 "$ROOT/packaging/AppRun" "$APPDIR/AppRun"
 install -m 0644 "$ROOT/packaging/nfc-games.desktop" "$APPDIR/nfc-games.desktop"
 install -m 0644 "$ROOT/packaging/nfc-games.png" "$APPDIR/nfc-games.png"
 mkdir -p "$APPDIR/usr/lib"
+
 # linuxdeploy blacklists libusb; copy it anyway so the image runs without brew.
-cp -a /usr/lib64/libusb-1.0.so.0* "$APPDIR/usr/lib/"
+# Try multiple locations (ubuntu uses x86_64-linux-gnu, others use lib64)
+for libusb_path in /usr/lib64/libusb-1.0.so.0* /usr/lib/x86_64-linux-gnu/libusb-1.0.so.0*; do
+  if [[ -e "$libusb_path" ]]; then
+    cp -a "$libusb_path" "$APPDIR/usr/lib/" || true
+  fi
+done
 
 # linuxdeploy expects the icon next to the desktop file in AppDir root as well.
 cp -a "$APPDIR/usr/share/icons/hicolor/256x256/apps/nfc-games.png" "$APPDIR/nfc-games.png"
@@ -72,6 +78,7 @@ cd "$DIST"
   --desktop-file "$APPDIR/nfc-games.desktop" \
   --icon-file "$APPDIR/nfc-games.png" \
   --library /usr/lib64/libusb-1.0.so.0 \
+  --library /usr/lib/x86_64-linux-gnu/libusb-1.0.so.0 \
   --custom-apprun "$ROOT/packaging/AppRun" \
   --output appimage
 
