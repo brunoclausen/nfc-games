@@ -116,9 +116,9 @@ python3 - "$tmp" "$APP_NAME" "$work" <<'PY'
 import json, sys
 path, want, work = sys.argv[1], sys.argv[2], sys.argv[3]
 d = json.load(open(path))
-open(f"{work}/release-id", "w").write(str(d["id"]))
+open(f"{work}/release-id", "w").write(str(d["id"]) + "\n")
 ids = [str(a["id"]) for a in d.get("assets", []) if a.get("name") == want]
-open(f"{work}/asset-ids", "w").write("\n".join(ids))
+open(f"{work}/asset-ids", "w").write(("\n".join(ids) + "\n") if ids else "")
 PY
 RID="$(cat "$work/release-id")"
 if [[ -s "$work/asset-ids" ]]; then
