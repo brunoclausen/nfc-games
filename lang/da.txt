@@ -24,6 +24,8 @@ Tags og spil:
   nfc list                    vis gemte tags (tags.conf)
   nfc remove <spil|uid>       fjern gemt tag
   nfc remove                  læs tag og fjern det hvis det er gemt
+  nfc tag backup [fil]        backup alle sider til .hex (default: ~/.config/nfc-games/tag-backups/<UID>-<tid>.hex)
+  nfc tag restore <fil>       gendan sider fra .hex på et tag
 
 Sprog:
   nfc sprog                   vis sprog og hvilket der er aktivt
@@ -172,3 +174,15 @@ ndef_unbound=nfc: tagget er ikke bundet. Brug nfc add først
 ndef_not_type2=tagget er ikke NTAG/Ultralight (kan ikke skrive tekst)
 ndef_too_small=tagget er for lille til spilnavnet
 ndef_readonly=tagget er skrivebeskyttet
+tag_usage=brug: nfc tag backup [fil] | nfc tag restore <fil>
+tag_backup_uid=backup af tag UID 
+tag_backup_count=backup: 
+tag_backup_suffix= sider → 
+tag_restore_uid=gendanner tag UID 
+tag_restore_usage=brug: nfc tag restore <fil>
+tag_restore_open=kan ikke åbne 
+tag_restore_mismatch=backup er fra UID 
+tag_restore_mismatch_suffix= — et andet tag ligger på læseren
+tag_restore_written=gendannet: 
+tag_restore_and= sider skrevet, 
+tag_restore_fail_suffix= fejlede (forventet for UID/lås)

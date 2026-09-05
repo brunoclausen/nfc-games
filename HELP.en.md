@@ -30,6 +30,8 @@ cmake -S . -B build && cmake --build build
 | `nfc list` | Show saved tags |
 | `nfc remove "Silent Hill 4"` | Remove tag from the list |
 | `nfc remove` | Read tag and remove it if it is saved |
+| `nfc tag backup [file]` | Dump all tag pages to a `.hex` (default: `~/.config/nfc-games/tag-backups/`) |
+| `nfc tag restore <file>` | Write tag pages back from a `.hex` (UID checked) |
 | `nfc farver` | Test red, green, yellow LED + beep |
 | `nfc led green\|red\|yellow\|off` | Set LED |
 | `nfc beep 300` | Beep (ms) |

@@ -192,6 +192,164 @@ int write_ndef_game(Acr122& reader, const std::string& name) {
 
 }  // namespace
 
+namespace {
+
+const char* g_hex = "0123456789ABCDEF";
+
+std::string trim_arg(std::string s) {
+  auto is_sp = [](unsigned char c) { return c == ' ' || c == '\t' || c == '\r' || c == '\n'; };
+  while (!s.empty() && is_sp(static_cast<unsigned char>(s.front()))) s.erase(s.begin());
+  while (!s.empty() && is_sp(static_cast<unsigned char>(s.back()))) s.pop_back();
+  return s;
+}
+
+std::string hex_byte(uint8_t b) {
+  std::string s(2, '0');
+  s[0] = g_hex[b >> 4];
+  s[1] = g_hex[b & 0x0F];
+  return s;
+}
+
+std::string hex_bytes(const std::vector<uint8_t>& v, size_t max) {
+  std::string s;
+  const size_t n = std::min(max, v.size());
+  for (size_t i = 0; i < n; ++i) {
+    s.push_back(g_hex[v[i] >> 4]);
+    s.push_back(g_hex[v[i] & 0x0F]);
+  }
+  return s;
+}
+
+std::vector<uint8_t> unhex_bytes(const std::string& hx) {
+  std::vector<uint8_t> out;
+  auto val = [](char c) -> int {
+    if (c >= '0' && c <= '9') return c - '0';
+    if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+    if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+    return -1;
+  };
+  for (size_t i = 0; i + 1 < hx.size(); i += 2) {
+    const int hi = val(hx[i]);
+    const int lo = val(hx[i + 1]);
+    if (hi < 0 || lo < 0) break;
+    out.push_back(static_cast<uint8_t>((hi << 4) | lo));
+  }
+  return out;
+}
+
+int cmd_tag_backup(const std::string& file_arg) {
+  UsbPause pause;
+  auto reader = open_reader();
+  auto uid = wait_for_tag(reader);
+  const std::string uidhex = Acr122::uid_hex(uid);
+
+  std::vector<std::vector<uint8_t>> pages;
+  pages.reserve(232);
+  for (uint8_t p = 0; p < 232; ++p) {
+    try {
+      auto chunk = reader.read_binary(p, 4);
+      if (chunk.empty()) break;
+      pages.push_back(std::move(chunk));
+    } catch (const Acr122Error&) {
+      break;
+    }
+  }
+
+  std::filesystem::path path = file_arg;
+  if (path.empty()) {
+    auto dir = nfc_config_dir() / "tag-backups";
+    std::error_code ec;
+    std::filesystem::create_directories(dir, ec);
+    const auto ts = std::chrono::duration_cast<std::chrono::milliseconds>(
+                        std::chrono::system_clock::now().time_since_epoch())
+                        .count();
+    path = dir / (uidhex + "-" + std::to_string(ts) + ".hex");
+  } else if (!path.parent_path().empty()) {
+    std::error_code ec;
+    std::filesystem::create_directories(path.parent_path(), ec);
+  }
+
+  std::ofstream out(path);
+  if (!out) {
+    std::cerr << t("tag_restore_open") << path << "\n";
+    return 1;
+  }
+  out << "UID " << uidhex << "\n";
+  if (auto ver = reader.ntag_version(); ver) out << "VERSION " << hex_bytes(*ver, 8) << "\n";
+  for (size_t p = 0; p < pages.size(); ++p) {
+    out << hex_byte(static_cast<uint8_t>(p)) << " " << hex_bytes(pages[p], 4) << "\n";
+  }
+  out.close();
+
+  std::cout << t("tag_backup_uid") << uidhex << "\n";
+  std::cout << t("tag_backup_count") << pages.size() << t("tag_backup_suffix") << path << "\n";
+  led_not_listening(reader);
+  return 0;
+}
+
+int cmd_tag_restore(const std::string& file_arg) {
+  if (file_arg.empty()) {
+    std::cerr << t("tag_restore_usage") << "\n";
+    return 2;
+  }
+  std::ifstream in(file_arg);
+  if (!in) {
+    std::cerr << t("tag_restore_open") << file_arg << "\n";
+    return 1;
+  }
+
+  std::vector<std::vector<uint8_t>> pages(232);
+  std::string want_uid;
+  std::string line;
+  while (std::getline(in, line)) {
+    const auto sp = line.find_first_of(" \t");
+    if (sp == std::string::npos) continue;
+    const std::string key = line.substr(0, sp);
+    const std::string val = trim_arg(line.substr(sp));
+    if (key == "UID") { want_uid = val; continue; }
+    if (key == "VERSION") continue;
+    long p = strtol(key.c_str(), nullptr, 16);
+    if (p < 0 || p > 231) continue;
+    auto bytes = unhex_bytes(val);
+    if (bytes.size() != 4) continue;
+    pages[static_cast<size_t>(p)] = std::move(bytes);
+  }
+
+  UsbPause pause;
+  auto reader = open_reader();
+  auto uid = wait_for_tag(reader);
+  const std::string uidhex = Acr122::uid_hex(uid);
+  std::cout << t("tag_restore_uid") << uidhex << "\n";
+  if (!want_uid.empty() && want_uid != uidhex) {
+    std::cerr << t("tag_restore_mismatch") << want_uid << t("tag_restore_mismatch_suffix") << "\n";
+    return 2;
+  }
+
+  int ok = 0, fail = 0;
+  for (size_t p = 0; p < pages.size(); ++p) {
+    if (p <= 2) continue;  // UID pages: readonly
+    if (pages[p].size() != 4) continue;
+    bool zero = true;
+    for (uint8_t b : pages[p]) {
+      if (b != 0) zero = false;
+    }
+    if (zero) continue;  // never-written pages
+    try {
+      reader.write_page(static_cast<uint8_t>(p), pages[p].data());
+      ++ok;
+    } catch (const Acr122Error&) {
+      ++fail;
+    }
+  }
+  std::cout << t("tag_restore_written") << ok << t("tag_restore_and") << fail
+            << t("tag_restore_fail_suffix") << "\n";
+  print_ndef(reader);
+  led_not_listening(reader);
+  return 0;
+}
+
+}  // namespace
+
 int cmd_read() {
   auto store = TagStore::load(TagStore::default_path());
   UsbPause pause;
@@ -542,6 +700,15 @@ int nfc_run(const std::string& cmd, const std::string& arg) {
     return cmd_add(arg);
   }
   if (cmd == "remove" || cmd == "rm" || cmd == "slet") return cmd_remove(arg);
+  if (cmd == "tag" || cmd == "brik") {
+    const auto sp = arg.find(' ');
+    const std::string sub = sp == std::string::npos ? arg : arg.substr(0, sp);
+    const std::string rest = sp == std::string::npos ? "" : trim_arg(arg.substr(sp + 1));
+    if (sub == "backup" || sub == "sikkerhedskopi" || sub == "dump") return cmd_tag_backup(rest);
+    if (sub == "restore" || sub == "gendan" || sub == "genopret") return cmd_tag_restore(rest);
+    std::cerr << t("tag_usage") << "\n";
+    return 2;
+  }
   if (cmd == "sprog" || cmd == "lang" || cmd == "language") return cmd_lang(arg);
   if (cmd == "udev") return cmd_udev(arg);
   if (cmd == "install" || cmd == "installer") return cmd_udev("install");

@@ -24,6 +24,8 @@ Tags and games:
   nfc list                    show saved tags (tags.conf)
   nfc remove <game|uid>       remove saved tag
   nfc remove                  read tag and remove it if saved
+  nfc tag backup [file]       dump all tag pages to a .hex (default: ~/.config/nfc-games/tag-backups/<UID>-<time>.hex)
+  nfc tag restore <file>      write tag pages back from a .hex
 
 Language:
   nfc lang                    list languages and the active one
@@ -172,3 +174,15 @@ ndef_unbound=nfc: tag is not bound. Use nfc add first
 ndef_not_type2=tag is not NTAG/Ultralight (cannot write text)
 ndef_too_small=tag is too small for the game name
 ndef_readonly=tag is write-protected
+tag_usage=usage: nfc tag backup [file] | nfc tag restore <file>
+tag_backup_uid=backup of tag UID 
+tag_backup_count=backup: 
+tag_backup_suffix= pages —> 
+tag_restore_uid=restoring tag UID 
+tag_restore_usage=usage: nfc tag restore <file>
+tag_restore_open=cannot open 
+tag_restore_mismatch=backup is from UID 
+tag_restore_mismatch_suffix= — a different tag is on the reader
+tag_restore_written=restored: 
+tag_restore_and= pages written, 
+tag_restore_fail_suffix= failed (expected for UID/lock)
