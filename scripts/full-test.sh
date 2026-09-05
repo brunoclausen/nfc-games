@@ -72,7 +72,7 @@ run_files() {
     tests/test_nfc.cpp tests/check_langs.py \
     packaging/AppRun packaging/install-udev.sh packaging/nfc-games.desktop \
     packaging/nfc-games.png packaging/nfc-games.svg \
-    scripts/build-appimage.sh scripts/upload.sh scripts/full-test.sh \
+    scripts/build-appimage.sh scripts/build-container.sh scripts/upload.sh scripts/full-test.sh \
     udev/99-acr122u.rules \
     lang/langs.txt lang/da.txt lang/en.txt lang/de.txt lang/sv.txt lang/nb.txt lang/fr.txt \
     .gitea/workflows/ci.yml
@@ -81,7 +81,7 @@ run_files() {
     else bad "mangler $f"
     fi
   done
-  for f in packaging/AppRun packaging/install-udev.sh scripts/build-appimage.sh scripts/upload.sh scripts/full-test.sh; do
+  for f in packaging/AppRun packaging/install-udev.sh scripts/build-appimage.sh scripts/build-container.sh scripts/upload.sh scripts/full-test.sh; do
     if [[ -x "$ROOT/$f" ]]; then ok "$f kørbar"
     else bad "$f er ikke kørbar"
     fi
@@ -199,12 +199,24 @@ run_appimage() {
     return
   fi
   echo "  bygger AppImage (uden at installere/genstarte watch)..."
-  if NFC_AUTO_INSTALL=0 "$ROOT/scripts/build-appimage.sh" >"$log" 2>&1; then
-    ok "build-appimage.sh"
-  else
-    bad "build-appimage.sh"
-    tail -40 "$log" >&2
-    return
+  local built=""
+  if command -v podman >/dev/null 2>&1 || command -v docker >/dev/null 2>&1; then
+    if "$ROOT/scripts/build-container.sh" >"$log" 2>&1; then
+      built=container
+      ok "build-container.sh (podman/docker, glibc ≤ 2.34)"
+    else
+      echo "  container-byg fejlede — host-byg i stedet:"
+      tail -15 "$log" >&2 || true
+    fi
+  fi
+  if [[ -z "$built" ]]; then
+    if NFC_AUTO_INSTALL=0 "$ROOT/scripts/build-appimage.sh" >"$log" 2>&1; then
+      ok "build-appimage.sh"
+    else
+      bad "build-appimage.sh"
+      tail -40 "$log" >&2
+      return
+    fi
   fi
   if [[ -x "$app" ]]; then
     ok "dist/nfc-games-x86_64.AppImage kørbar"
@@ -322,9 +334,42 @@ run_hw() {
     bad "firmware '$fw'"
   fi
   if pgrep -f 'nfc watch' >/dev/null 2>&1 || pgrep -f 'nfc-games-x86_64.AppImage watch' >/dev/null 2>&1; then
-    ok "watch kører"
+    ok "watch kører allerede (smoke-test sprunget over)"
   else
-    echo "  SKIP  watch kører ikke (startes kun fra menu 1, ikke i baggrunden)"
+    # Smoke test: start watch, lad den poller, SIGTERM, forvent pæn exit.
+    # NB: ligger der et tag på læseren, starter watch det bundne spil — som design.
+    local log="/tmp/nfc-watch-smoke.log"
+    local pid=""
+    : > "$log"
+    if [[ "$nfc" == *.AppImage ]]; then
+      NFC_SKIP_INSTALL=1 "$nfc" watch >"$log" 2>&1 &
+    else
+      "$nfc" watch >"$log" 2>&1 &
+    fi
+    pid=$!
+    sleep 2
+    if kill -0 "$pid" 2>/dev/null; then
+      ok "watch startet og pollede efter 2 s"
+    else
+      bad "watch døde under opstart"
+      tail -10 "$log" >&2 || true
+    fi
+    if kill -0 "$pid" 2>/dev/null; then
+      kill -TERM "$pid" 2>/dev/null || true
+      local waited
+      for waited in $(seq 1 40); do
+        kill -0 "$pid" 2>/dev/null || break
+        sleep 0.1
+      done
+      if kill -0 "$pid" 2>/dev/null; then
+        kill -KILL "$pid" 2>/dev/null || true
+        wait "$pid" 2>/dev/null || true
+        bad "watch stoppede ikke ved SIGTERM"
+      else
+        wait "$pid" 2>/dev/null || true
+        ok "watch stoppede pænt ved SIGTERM"
+      fi
+    fi
   fi
   local list
   if [[ "$nfc" == *.AppImage ]]; then
