@@ -118,11 +118,6 @@ Acr122 Acr122::open() {
   } catch (const Acr122Error&) {
   }
   try {
-    // PN532 SAMConfiguration: normal mode
-    (void)reader.xfr({0xFF, 0x00, 0x00, 0x00, 0x05, 0xD4, 0x14, 0x01, 0x00, 0x00}, 1000);
-  } catch (const Acr122Error&) {
-  }
-  try {
     // RF field on
     (void)reader.xfr({0xFF, 0x00, 0x00, 0x00, 0x04, 0xD4, 0x32, 0x01, 0x01}, 1000);
   } catch (const Acr122Error&) {
@@ -156,8 +151,6 @@ Acr122& Acr122::operator=(Acr122&& other) noexcept {
 
 void Acr122::close() {
   if (handle_) {
-    // Bus reset clears ACR122U firmware hangs after long PICC polling.
-    libusb_reset_device(handle_);
     libusb_release_interface(handle_, 0);
     libusb_close(handle_);
     handle_ = nullptr;
@@ -166,6 +159,13 @@ void Acr122::close() {
     libusb_exit(ctx_);
     ctx_ = nullptr;
   }
+}
+
+// Last-resort USB reset for the rare case the reader is truly wedged.
+// Frequent USB resets stress the xHCI controller (seen: HC died after
+// reset churn), so this is only called on persistent errors.
+void Acr122::reset_hw() {
+  if (handle_) libusb_reset_device(handle_);
 }
 
 Acr122::~Acr122() { close(); }
@@ -233,10 +233,6 @@ void Acr122::recover() {
   }
   try {
     (void)xfr({0xFF, 0x00, 0x51, 0xFF, 0x00}, 1000);
-  } catch (const Acr122Error&) {
-  }
-  try {
-    (void)xfr({0xFF, 0x00, 0x00, 0x00, 0x05, 0xD4, 0x14, 0x01, 0x00, 0x00}, 1000);
   } catch (const Acr122Error&) {
   }
   try {

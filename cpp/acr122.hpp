@@ -35,6 +35,8 @@ class Acr122 {
   // Drop leftover CCID packets and turn the RF field back on.
   void recover();
   void flush();
+  // Last-resort USB reset; only for a genuinely wedged reader (rare).
+  void reset_hw();
   // Blink then leave `final` on. Buzzer sounds during the on-phase when buzz=true.
   void blink(Led blink_led, Led final, std::chrono::milliseconds on,
              std::chrono::milliseconds off, int repeats, bool buzz);

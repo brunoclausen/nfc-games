@@ -18,6 +18,11 @@ namespace {
 
 volatile std::sig_atomic_t g_watch_run = 1;
 
+// ACR122U firmware hangs after long PICC polling, so refresh the USB
+// connection periodically even while a tag is held.
+constexpr auto kRefreshEvery = 15min;
+constexpr auto kReopenSettle = 300ms;
+
 void watch_signal(int) { g_watch_run = 0; }
 
 }  // namespace
@@ -87,6 +92,8 @@ int cmd_watch() {
     deaf = true;
     errors = 0;
     last_usb_open = clock::now();
+    // Let the USB reset / re-enumeration settle before reopening.
+    std::this_thread::sleep_for(kReopenSettle);
   };
 
   auto bind_active = [&]() {
@@ -167,12 +174,26 @@ int cmd_watch() {
       }
       if (holding) {
         set_led_safe(*reader, Acr122::Led::Yellow);
-        if (errors >= 8) reader.reset();
+        if (errors >= 8) {
+          // Persistent failure while holding: last-resort USB reset, then reopen.
+          try {
+            reader->reset_hw();
+          } catch (const Acr122Error&) {
+          }
+          reader.reset();
+        }
       } else if (errors >= 2) {
         if (!deaf) {
           deaf = true;
           std::cout << t("watch_not_listening") << "\n" << std::flush;
           led_not_listening(*reader);
+        }
+        // Hardware reset only after repeated reopen attempts fail.
+        if (errors >= 4) {
+          try {
+            reader->reset_hw();
+          } catch (const Acr122Error&) {
+          }
         }
         reader.reset();
       } else {
@@ -231,7 +252,7 @@ int cmd_watch() {
       idle_begin = clock::now();
       signal_tag_off(*reader);
       drop_reader();
-    } else if (tracker.active.empty() && clock::now() - last_usb_open >= 5min) {
+    } else if (clock::now() - last_usb_open >= kRefreshEvery) {
       std::cout << t("watch_usb_reset") << "\n" << std::flush;
       drop_reader();
     } else if (!tracker.active.empty()) {
@@ -239,7 +260,7 @@ int cmd_watch() {
     }
     if (reader) listen_led(*reader, !tracker.active.empty());
     const auto idle_for = clock::now() - idle_begin;
-    std::this_thread::sleep_for(idle_for > 30s ? 700ms : 250ms);
+    std::this_thread::sleep_for(idle_for > 30s ? 1000ms : 250ms);
   }
 
   if (active_appid != 0) {
