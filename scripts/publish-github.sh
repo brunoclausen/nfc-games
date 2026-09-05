@@ -61,9 +61,8 @@ if ! git -C "$SRC" -c credential.helper= push "git@github-nfc-games:${GH_REPO}.g
   echo "nfc: wiki: http://192.168.1.3:3002/app/nfc-games/wiki/Upload"
   exit 0
 fi
-if git -C "$SRC" rev-parse "$TAG" >/dev/null 2>&1; then
-  git -C "$SRC" -c credential.helper= push "git@github-nfc-games:${GH_REPO}.git" "$TAG" || true
-fi
+# Publisher kun AppImage her. Tagget skubbes IKKE til GitHub:
+# release.yml ville ellers bygge + uploade samtidig og overskrive vores testede build.
 echo "nfc: kode på https://github.com/${GH_REPO}"
 
 if [[ -z "$TOKEN" ]]; then
