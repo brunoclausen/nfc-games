@@ -33,7 +33,12 @@ std::size_t tlv_size_for(std::size_t ndef_len) {
   return hdr + ndef_len + 1;  // terminator
 }
 
-std::optional<std::string> parse_ndef_records(const std::uint8_t* p, std::size_t n) {
+// Smart Poster records nest, so a crafted tag could recurse deeply.
+constexpr int kNdefMaxDepth = 8;
+
+std::optional<std::string> parse_ndef_records(const std::uint8_t* p, std::size_t n,
+                                              int depth = 0) {
+  if (depth > kNdefMaxDepth) return std::nullopt;
   std::size_t i = 0;
   while (i + 3 <= n) {
     const std::uint8_t header = p[i];
@@ -70,7 +75,7 @@ std::optional<std::string> parse_ndef_records(const std::uint8_t* p, std::size_t
       }
     }
     if (tnf == 0x01 && type_len == 2 && type[0] == 'S' && type[1] == 'p' && payload_len > 0) {
-      if (auto nested = parse_ndef_records(payload, payload_len)) return nested;
+      if (auto nested = parse_ndef_records(payload, payload_len, depth + 1)) return nested;
     }
     i = idx + payload_len;
     if (header & 0x40) break;  // ME

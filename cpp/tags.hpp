@@ -10,8 +10,9 @@
 struct Tag {
   std::string uid;
   std::string name;
-  std::uint32_t appid = 0;
-  std::string kind;
+  std::uint32_t appid = 0;  // steam/shortcut only
+  std::string kind;         // "steam" | "shortcut" | "lutris" | "heroic"
+  std::string target;       // lutris slug / heroic app_name; empty for Steam
 };
 
 class TagStore {

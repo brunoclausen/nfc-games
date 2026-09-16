@@ -51,34 +51,42 @@ Dateien:
 <<<
 help_missing=Hilfe-Datei: HELP.md (nicht gefunden)
 menu_text<<<
-nfc-games — Menü
-  1  watch       bereit=grün; Tag auf=gelb+2 Pieps+Start; Tag ab=1 Pieps+Stop+grün
-  2  games       Steam-Spiele und Shortcuts
-  3  start       Spiel starten (Name/appid, leer = Tag lesen)
-  4  stop        Spiel beenden
-  5  lock        laufendes/gesperrtes Spiel
-  6  add         Tag an Spiel binden und Namen schreiben
-  7  read        Tag lesen
-  8  list        gespeicherte Tags
-  9  remove      Tag entfernen
- 10  farver      LED rot/grün/gelb + Piep
- 11  led         LED setzen
- 12  beep        Piep
- 13  firmware    ACR122U-Firmware
- 14  udev        udev-Regel installieren
- 15  lang        Sprache anzeigen oder wechseln
- 16  help        HELP.md
- 17  version     Version
- 18  restart     Watch neu starten
- 19  write       Spielname auf das Tag schreiben
-  0  beenden
+NFC-Spiele
+  1  Auf Tags hören (grün = bereit)
+  2  Neues Tag an ein Spiel binden
+  3  Deine Tags anzeigen
+  4  Tag auf dem Leser lesen
+  5  Tag entfernen
+  6  Spielname auf das Tag schreiben (Telefon)
+  7  Sprache
+  8  Mehr...
+  0  Beenden
+<<<
+menu_more_text<<<
+Mehr
+  1  Steam-Spiele anzeigen
+  2  Spiel starten
+  3  Spiel beenden
+  4  laufendes Spiel anzeigen
+  5  LED und Piep testen
+  6  Leser-Firmware anzeigen
+  7  udev-Regel installieren
+  8  Tag sichern
+  9  Tag wiederherstellen
+ 10  Hilfe
+ 11  Version
+ 12  Hören neu starten
+ 13  in diesem Terminal hören
+  0  zurück
 <<<
 menu_prompt=Nummer: 
 menu_ask_game=Spiel oder appid: 
-menu_ask_remove=Spiel/uid (leer = Tag auf Leser): 
+menu_ask_game_pick=Nummer aus der Liste oder Spielname: 
+menu_ask_remove=Spielname (leer = Tag auf Leser): 
+menu_ask_restore=Pfad zur .hex-Datei: 
 menu_ask_led=LED (green/red/yellow/off): 
 menu_ask_lang=Sprache (Code, leer = Liste): 
-menu_need_game=nfc: Spielname oder appid eingeben
+menu_need_game=nfc: Nummer wählen oder Spielname eingeben
 menu_fail=nfc: Aktion fehlgeschlagen
 menu_enter=Enter zum Fortfahren...
 unknown_led=unbekannte LED: 
@@ -104,7 +112,9 @@ watch_stopping=watch  stoppt
 watch_stopped=watch  gestoppt (rot, hört nicht)
 watch_already=watch läuft bereits (pid 
 watch_paused=watch  USB frei für add/read
-watch_usb_reset=watch  USB-Reset (langer Betrieb)
+watch_usb_reset=watch  USB-Reset (letzter Ausweg)
+watch_usb_reopen=watch  USB-Neuöffnung
+watch_waiting_reader=watch  warte auf ACR122U...
 watch_running=watch läuft (pid 
 watch_starting=Watch wird gestartet...
 watch_started=Watch gestartet (pid 
@@ -177,3 +187,10 @@ tag_restore_mismatch_suffix= — ein anderes Tag liegt auf dem Leser
 tag_restore_written=wiederhergestellt: 
 tag_restore_and= Seiten geschrieben, 
 tag_restore_fail_suffix= fehlgeschlagen (erwartet für UID/Sperre)
+
+# Lutris/Heroic-Arten
+add_kind_usage=nfc add lutris <slug> [Name]  |  nfc add heroic <app_name> [Name]
+start_other=startet über 
+watch_start_other=watch  startet 
+stop_not_stoppable=nfc: diese Spielart kann nicht automatisch gestoppt werden — manuell beenden.
+watch_nonsteam_keep=watch  läuft weiter (kein automatischer Stopp)

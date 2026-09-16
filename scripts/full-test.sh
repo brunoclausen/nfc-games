@@ -147,7 +147,13 @@ run_udev_packaging() {
   else
     bad "udev mangler pn533_usb-unbind"
   fi
-  if grep -q '^Name=NFC Games' "$ROOT/packaging/nfc-games.desktop"; then
+  if grep -q 'blacklist pn533_usb' "$ROOT/packaging/install-udev.sh"; then
+    ok "udev-installer blacklister pn533_usb"
+  else
+    bad "udev-installer mangler pn533_usb-blacklist"
+  fi
+  if grep -q '^Name=NFC Games' "$ROOT/packaging/nfc-games.desktop" &&
+     grep -q '^Name\[da\]=NFC-spil' "$ROOT/packaging/nfc-games.desktop"; then
     ok "desktop-fil Name="
   else
     bad "desktop-fil"
@@ -281,6 +287,14 @@ run_product() {
     if [[ "$out" == *"$ver"* ]]; then ok "AppImage version $ver"
     else bad "AppImage version '$out'"
     fi
+    if [[ -x "$HOME/bin/nfc" ]]; then
+      out="$(NFC_SKIP_INSTALL=1 "$HOME/bin/nfc" version 2>/dev/null || true)"
+      if [[ "$out" == *"$ver"* ]]; then ok "~/bin/nfc → AppImage $ver"
+      else bad "~/bin/nfc version '$out'"
+      fi
+    else
+      echo "  SKIP  ~/bin/nfc (wrapper)"
+    fi
   else
     echo "  SKIP  AppImage (ikke installeret her)"
   fi
@@ -316,8 +330,8 @@ run_hw() {
     return
   fi
   ok "USB 072f:2200"
-  local nfc="$ROOT/build/nfc"
-  [[ -x "$nfc" ]] || nfc="$HOME/Applications/nfc-games-x86_64.AppImage"
+  local nfc="$HOME/Applications/nfc-games-x86_64.AppImage"
+  [[ -x "$nfc" ]] || nfc="$ROOT/build/nfc"
   if [[ ! -x "$nfc" ]]; then
     bad "ingen nfc-binær til firmware-test"
     return
@@ -390,7 +404,8 @@ run_games() {
     echo "  SKIP  Steam-scan i CI"
     return
   fi
-  local nfc="$ROOT/build/nfc"
+  local nfc="$HOME/Applications/nfc-games-x86_64.AppImage"
+  [[ -x "$nfc" ]] || nfc="$ROOT/build/nfc"
   [[ -x "$nfc" ]] || return
   local out
   out="$("$nfc" games 2>/dev/null | tail -5 || true)"

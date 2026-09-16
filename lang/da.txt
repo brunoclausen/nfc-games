@@ -60,34 +60,42 @@ Eksempel:
 <<<
 help_missing=help-fil: HELP.md (ikke fundet)
 menu_text<<<
-nfc-games — menu
-  1  watch       klar=grøn; tag på=gul+2 beep+start; tag af=1 beep+stop+grøn
-  2  games       vis Steam-spil og shortcuts
-  3  start       start spil (navn/appid, eller tomt = læs tag)
-  4  stop        stop spil
-  5  lock        vis kørende/låst spil
-  6  add         bind tag til spil og skriv navn
-  7  read        læs tag
-  8  list        vis gemte tags
-  9  remove      fjern tag
- 10  farver      test rød/grøn/gul LED + beep
- 11  led         sæt LED
- 12  beep        bip
- 13  firmware    vis ACR122U-firmware
- 14  udev        installér udev-regel
- 15  sprog       vis eller skift sprog
- 16  help        vis HELP.md
- 17  version     vis versionsnummer
- 18  restart     genstart watch
- 19  write       skriv spilnavn på tagget
-  0  afslut
+NFC-spil
+  1  Lyt efter tags (grøn = klar)
+  2  Bind nyt tag til et spil
+  3  Vis dine tags
+  4  Læs tagget på læseren
+  5  Fjern et tag
+  6  Skriv spilnavn på tagget (telefon)
+  7  Sprog
+  8  Mere...
+  0  Afslut
+<<<
+menu_more_text<<<
+Mere
+  1  vis Steam-spil
+  2  start spil
+  3  stop spil
+  4  vis kørende spil
+  5  test LED og bip
+  6  vis læser-firmware
+  7  installér udev-regel
+  8  backup af tag
+  9  gendan tag
+ 10  hjælp
+ 11  version
+ 12  genstart lyt
+ 13  lyt i denne terminal
+  0  tilbage
 <<<
 menu_prompt=Nummer: 
 menu_ask_game=spil eller appid: 
-menu_ask_remove=spil/uid (tomt = tag på læser): 
+menu_ask_game_pick=nummer fra listen, eller spilnavn: 
+menu_ask_remove=spilnavn (tomt = tag på læser): 
+menu_ask_restore=sti til .hex-fil: 
 menu_ask_led=LED (green/red/yellow/off): 
 menu_ask_lang=sprog (kode, tomt = vis): 
-menu_need_game=nfc: skriv et spilnavn eller appid
+menu_need_game=nfc: vælg et nummer eller skriv et spilnavn
 menu_fail=nfc: handlingen fejlede
 menu_enter=Enter for at fortsætte...
 unknown_led=ukendt LED: 
@@ -113,7 +121,9 @@ watch_stopping=watch  stopper
 watch_stopped=watch  stoppet (rød, lytter ikke)
 watch_already=watch kører allerede (pid 
 watch_paused=watch  USB fri til add/read
-watch_usb_reset=watch  USB-reset (lang kørsel)
+watch_usb_reset=watch  USB-reset (sidste udvej)
+watch_usb_reopen=watch  USB-genåbning
+watch_waiting_reader=watch  venter på ACR122U...
 watch_running=watch kører (pid 
 watch_starting=starter watch...
 watch_started=watch startet (pid 
@@ -186,3 +196,10 @@ tag_restore_mismatch_suffix= — et andet tag ligger på læseren
 tag_restore_written=gendannet: 
 tag_restore_and= sider skrevet, 
 tag_restore_fail_suffix= fejlede (forventet for UID/lås)
+
+# lutris/heroic-typer
+add_kind_usage=nfc add lutris <slug> [navn]  |  nfc add heroic <app_name> [navn]
+start_other=starter via 
+watch_start_other=watch  starter 
+stop_not_stoppable=nfc: denne spiltype kan ikke stoppes automatisk — luk den manuelt.
+watch_nonsteam_keep=watch  lader den køre (ingen automatisk stop)

@@ -11,8 +11,18 @@ Linux-værktøj: læg et **ACR122U**-NFC-tag på læseren for at starte eller st
 
 English: [README.md](README.md)
 
-**Testet på:** Bazzite (Fedora) x86_64, ACR122U firmware ACR122U216.  
+**Testet på:** Bazzite (Fedora) x86_64, ACR122U firmware ACR122U216. Watch kan køre længe (RF-refresh, ingen USB-reset-loop).  
 **Ikke:** Windows, macOS, andre NFC-læsere, eller spil startet uden om Steam.
+
+## Hvorfor dette findes (sammenlignet med Zaparoo/TapTo)
+
+[Zaparoo](https://zaparoo.org) (efterfølgeren til TapTo) er det
+veletablerede valg til at spille fra NFC-tags, men deres ACR122U-driver på
+Linux er `libnfc`, hvor **læserens LED og bipper ikke virker, og nogle
+clones er inkompatible** (PC/SC-only-clones virker ofte slet ikke på
+Linux). nfc-games taler i stedet **direkte med ACR122U via libusb**
+(samme CCID-kanal som PC/SC bruger), så LED og buzzer virker normalt,
+og clones som den testede `ACR122U216` understøttes.
 
 ## Krav
 
@@ -52,21 +62,22 @@ En samlet binær, hvis du ikke vil beholde kildekoden. Første kørsel
 installerer sig selv:
 
 - kopierer altid sig selv til `~/Applications/nfc-games-x86_64.AppImage`
-- app-menu (`nfc menu`); watch kun når du vælger den (ikke i baggrunden)
+- app-menu (`nfc menu`) plus en systemd-brugerunit, så watch starter ved login
 - ACR122U udev-regel (adgangskode via pkexec, én gang)
 
 ```bash
 ./scripts/build-appimage.sh
 # output: dist/nfc-games-x86_64.AppImage
-# installerer også til ~/Applications (starter ikke watch)
+# installerer også til ~/Applications og aktiverer + starter watch
 ```
 
 ```bash
 chmod +x nfc-games-x86_64.AppImage
 ./nfc-games-x86_64.AppImage           # installér + menu
-./nfc-games-x86_64.AppImage install   # kun installér
-./nfc-games-x86_64.AppImage watch
-./nfc-games-x86_64.AppImage restart   # genstart watch uden systemctl
+./nfc-games-x86_64.AppImage install   # kun installér (lægger også ~/bin/nfc på PATH)
+nfc                                   # derefter: alt kører i AppImage
+nfc watch
+nfc restart
 ```
 
 ## Læg ændringer på Gitea (gratis)
@@ -106,12 +117,25 @@ og som Gitea-secret. Den kommer **ikke** i git.
 
 | Fil | Formål |
 | --- | --- |
-| `~/.config/nfc-games/tags.conf` | tag-UID → Steam appid |
-| `~/.config/nfc-games/nfc.conf` | sprog (`da`, `en`, `de`, `sv`, `nb`, `fr`) |
+| `~/.config/nfc-games/tags.conf` | tag-UID → Steam appid (eller lutris-slug / heroic-app_name) |
+| `~/.config/nfc-games/nfc.conf` | sprog (`da`, `en`, `de`, `sv`, `nb`, `fr`) og valgfri `hook_start`/`hook_stop` |
 
 Steam-spil og ROM-genveje bliver i Steam. Programmet tager **ikke** spil eller tags med.
 
 Bind **ikke** tags til `boot-windows` eller Proton/runtime.
+
+## Hooks (valgfrit)
+
+Når `watch` starter eller stopper et Steam-spil, kan den køre en kommando fra `nfc.conf`:
+
+```
+hook_start=~/bin/game-on.sh
+hook_stop=~/bin/game-off.sh
+```
+
+Hver kommando køres løsrevet via `sh -c`, med `$1` = Steam-appid og `$2` = spillets
+navn. Config'en læses igen ved hvert udløs, så ændringer gælder uden genstart.
+Hooks udløses kun fra `watch`-daemonen — ikke fra `nfc start`/`nfc stop`.
 
 ## Licens
 

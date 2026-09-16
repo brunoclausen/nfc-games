@@ -16,3 +16,4 @@ int cmd_udev(const std::string& arg);
 int cmd_lang(const std::string& want);
 int cmd_restart();
 int cmd_start_watch();
+int live_watch_pid();

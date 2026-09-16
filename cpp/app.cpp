@@ -224,10 +224,6 @@ void signal_tag_off(Acr122& r) {
   beep_safe(r, 200ms, 1);
 }
 
-void listen_led(Acr122& r, bool tag_on) {
-  set_led_safe(r, tag_on ? Acr122::Led::Yellow : Acr122::Led::Green);
-}
-
 void led_not_listening(Acr122& r) { set_led_safe(r, Acr122::Led::Red); }
 
 void demo(Acr122& r) {
@@ -243,7 +239,12 @@ void print_tag(const std::string& uid, const TagStore& store) {
   std::cout << "uid  " << uid << "\n";
   if (auto known = store.find_uid(uid)) {
     std::cout << t("game") << " " << known->name << "\n";
-    if (known->appid) std::cout << "id   " << known->appid << "  " << known->kind << "\n";
+    if (known->appid || !known->target.empty()) {
+      const std::string id =
+          known->target.empty() ? std::to_string(known->appid) : known->target;
+      std::cout << "id   " << id << "  " << (known->kind.empty() ? "steam" : known->kind)
+                << "\n";
+    }
   } else {
     std::cout << t("game_unknown") << "\n";
   }

@@ -47,34 +47,42 @@ Hjälp:
 <<<
 help_missing=hjälpfil: HELP.md (hittades inte)
 menu_text<<<
-nfc-games — meny
-  1  watch       redo=grön; tagg på=gul+2 pip+start; tagg av=1 pip+stopp+grön
-  2  games       Steam-spel och genvägar
-  3  start       starta spel (namn/appid, tomt = läs tagg)
-  4  stop        stoppa spel
-  5  lock        körande/låst spel
-  6  add         bind tagg till spel och skriv namn
-  7  read        läs tagg
-  8  list        sparade taggar
-  9  remove      ta bort tagg
- 10  farver      testa LED röd/grön/gul + pip
- 11  led         sätt LED
- 12  beep        pip
- 13  firmware    ACR122U-firmware
- 14  udev        installera udev-regel
- 15  lang        visa eller byt språk
- 16  help        HELP.md
- 17  version     version
- 18  restart     starta om watch
- 19  write       skriv spelnamn på taggen
-  0  avsluta
+NFC-spel
+  1  Lyssna efter taggar (grön = redo)
+  2  Bind en ny tagg till ett spel
+  3  Visa dina taggar
+  4  Läs taggen på läsaren
+  5  Ta bort en tagg
+  6  Skriv spelnamnet på taggen (telefon)
+  7  Språk
+  8  Mer...
+  0  Avsluta
+<<<
+menu_more_text<<<
+Mer
+  1  visa Steam-spel
+  2  starta spel
+  3  stoppa spel
+  4  visa körande spel
+  5  testa LED och pip
+  6  visa läsarens firmware
+  7  installera udev-regel
+  8  säkerhetskopiera tagg
+  9  återställ tagg
+ 10  hjälp
+ 11  version
+ 12  starta om lyssning
+ 13  lyssna i den här terminalen
+  0  tillbaka
 <<<
 menu_prompt=Nummer: 
 menu_ask_game=spel eller appid: 
-menu_ask_remove=spel/uid (tomt = tagg på läsare): 
+menu_ask_game_pick=nummer från listan, eller spelnamn: 
+menu_ask_remove=spelnamn (tomt = tagg på läsare): 
+menu_ask_restore=sökväg till .hex-fil: 
 menu_ask_led=LED (green/red/yellow/off): 
 menu_ask_lang=språk (kod, tomt = lista): 
-menu_need_game=nfc: ange spelnamn eller appid
+menu_need_game=nfc: välj ett nummer eller skriv ett spelnamn
 menu_fail=nfc: åtgärden misslyckades
 menu_enter=Enter för att fortsätta...
 unknown_led=okänd LED: 
@@ -100,7 +108,9 @@ watch_stopping=watch  stoppar
 watch_stopped=watch  stoppad (röd, lyssnar inte)
 watch_already=watch körs redan (pid 
 watch_paused=watch  USB ledigt för add/read
-watch_usb_reset=watch  USB-reset (lång körning)
+watch_usb_reset=watch  USB-reset (sista utväg)
+watch_usb_reopen=watch  USB-återöppning
+watch_waiting_reader=watch  väntar på ACR122U...
 watch_running=watch körs (pid 
 watch_starting=startar watch...
 watch_started=watch startad (pid 
@@ -173,3 +183,10 @@ tag_restore_mismatch_suffix= — ett annat tag ligger på läsaren
 tag_restore_written=återställt: 
 tag_restore_and= sidor skrivna, 
 tag_restore_fail_suffix= misslyckades (förväntat för UID/lås)
+
+# lutris/heroic-typer
+add_kind_usage=nfc add lutris <slug> [namn]  |  nfc add heroic <app_name> [namn]
+start_other=startar via 
+watch_start_other=watch  startar 
+stop_not_stoppable=nfc: den här speltypen kan inte stoppas automatiskt — stäng den manuellt.
+watch_nonsteam_keep=watch  låter den köra (inget automatiskt stopp)

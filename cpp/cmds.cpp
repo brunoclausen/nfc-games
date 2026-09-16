@@ -2,8 +2,10 @@
 #include "app.hpp"
 #include "commands.hpp"
 #include "i18n.hpp"
+#include "launch.hpp"
 #include "watch.hpp"
 
+#include <cctype>
 #include <cerrno>
 #include <chrono>
 #include <csignal>
@@ -33,6 +35,18 @@ std::string name_for_appid(std::uint32_t appid) {
   return std::to_string(appid);
 }
 
+std::string trim_arg(std::string s) {
+  auto is_sp = [](unsigned char c) { return c == ' ' || c == '\t' || c == '\r' || c == '\n'; };
+  while (!s.empty() && is_sp(static_cast<unsigned char>(s.front()))) s.erase(s.begin());
+  while (!s.empty() && is_sp(static_cast<unsigned char>(s.back()))) s.pop_back();
+  return s;
+}
+
+std::string lower_ascii(std::string s) {
+  for (char& c : s) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+  return s;
+}
+
 }  // namespace
 
 int cmd_help() {
@@ -48,7 +62,7 @@ int cmd_help() {
 }
 
 int cmd_start(const std::string& query) {
-  SteamGame game;
+  Tag tag;
   if (query.empty()) {
     auto store = TagStore::load(TagStore::default_path());
     UsbPause pause;
@@ -56,37 +70,69 @@ int cmd_start(const std::string& query) {
     auto uid = wait_for_tag(reader);
     const std::string hex = Acr122::uid_hex(uid);
     auto known = store.find_uid(hex);
-    if (!known || known->appid == 0) {
+    if (!known || (known->appid == 0 && known->target.empty())) {
       reader.set_led(Acr122::Led::Red);
       std::cout << "uid  " << hex << "\n";
       std::cerr << t("tag_unbound") << "\n";
       return 1;
     }
-    game.appid = known->appid;
-    game.name = known->name;
-    game.kind = known->kind;
+    tag = *known;
     reader.blink(Acr122::Led::Yellow, Acr122::Led::Red, 150ms, 80ms, 1, true);
   } else {
-    int rc = resolve_game(query, game);
-    if (rc != 0) return rc;
-  }
-  if (auto full = SteamLibrary::cached_scan().find(std::to_string(game.appid))) {
-    game = *full;
-  }
-  auto run = SteamLibrary::running();
-  for (const auto& r : run) {
-    if (r.appid == game.appid) {
-      std::cout << t("already_running") << game.name << "  " << game.appid << "\n";
-      return 0;
+    const auto sp = query.find(' ');
+    const std::string first = sp == std::string::npos ? query : query.substr(0, sp);
+    if (first == "lutris" || first == "heroic") {
+      const std::string rest = trim_arg(query.substr(sp + 1));
+      if (rest.empty()) {
+        std::cerr << t("add_kind_usage") << "\n";
+        return 2;
+      }
+      tag.kind = first;
+      const auto sp2 = rest.find(' ');
+      if (sp2 == std::string::npos) {
+        tag.target = rest;
+        tag.name = rest;
+      } else {
+        tag.target = rest.substr(0, sp2);
+        tag.name = trim_arg(rest.substr(sp2 + 1));
+      }
+    } else {
+      SteamGame game;
+      int rc = resolve_game(query, game);
+      if (rc != 0) return rc;
+      tag.appid = game.appid;
+      tag.name = game.name;
+      tag.kind = game.kind;
     }
   }
-  if (!run.empty()) {
-    std::cerr << t("locked") << run.front().appid << t("locked_suffix") << "\n";
-    return 3;
+
+  if (launcher::is_steam_kind(tag.kind)) {
+    SteamGame game;
+    game.appid = tag.appid;
+    game.name = tag.name;
+    game.kind = tag.kind;
+    if (auto full = SteamLibrary::cached_scan().find(std::to_string(game.appid))) {
+      game = *full;
+    }
+    auto run = SteamLibrary::running();
+    for (const auto& r : run) {
+      if (r.appid == game.appid) {
+        std::cout << t("already_running") << game.name << "  " << game.appid << "\n";
+        return 0;
+      }
+    }
+    if (!run.empty()) {
+      std::cerr << t("locked") << run.front().appid << t("locked_suffix") << "\n";
+      return 3;
+    }
+    std::cout << t("start_steam") << game.name << "  " << SteamLibrary::steam_uri(game)
+              << "\n";
+    SteamLibrary::launch(game);
+    return 0;
   }
-  std::cout << t("start_steam") << game.name << "  " << SteamLibrary::steam_uri(game)
-            << "\n";
-  SteamLibrary::launch(game);
+
+  std::cout << t("start_other") << tag.name << "  " << launcher::uri(tag) << "\n";
+  launcher::launch(tag);
   return 0;
 }
 
@@ -107,6 +153,19 @@ int cmd_stop(const std::string& query) {
   std::uint32_t appid = 0;
   std::string name;
   if (!query.empty()) {
+    {
+      // Lutris/Heroic targets have no automatic stop; say so before the
+      // Steam-only resolver reports "no match".
+      auto store = TagStore::load(TagStore::default_path());
+      const std::string uid = normalize_uid(query);
+      for (const auto& tag : store.all()) {
+        if (launcher::is_steam_kind(tag.kind)) continue;
+        if (tag.uid == uid || tag.target == query || lower_ascii(tag.name) == lower_ascii(query)) {
+          std::cerr << t("stop_not_stoppable") << "\n";
+          return 2;
+        }
+      }
+    }
     SteamGame game;
     int rc = resolve_game(query, game);
     if (rc != 0) return rc;
@@ -158,8 +217,12 @@ int cmd_list() {
     std::cout << t("no_tags") << store.path().string() << "\n";
     return 0;
   }
-  for (const auto& t : store.all()) {
-    std::cout << t.uid << "  " << t.kind << "  " << t.appid << "  " << t.name << "\n";
+  for (const auto& tag : store.all()) {
+    const std::string id = launcher::is_steam_kind(tag.kind)
+                               ? std::to_string(tag.appid)
+                               : tag.target;
+    std::cout << tag.uid << "  " << (tag.kind.empty() ? "steam" : tag.kind) << "  " << id
+              << "  " << tag.name << "\n";
   }
   return 0;
 }
@@ -195,13 +258,6 @@ int write_ndef_game(Acr122& reader, const std::string& name) {
 namespace {
 
 const char* g_hex = "0123456789ABCDEF";
-
-std::string trim_arg(std::string s) {
-  auto is_sp = [](unsigned char c) { return c == ' ' || c == '\t' || c == '\r' || c == '\n'; };
-  while (!s.empty() && is_sp(static_cast<unsigned char>(s.front()))) s.erase(s.begin());
-  while (!s.empty() && is_sp(static_cast<unsigned char>(s.back()))) s.pop_back();
-  return s;
-}
 
 std::string hex_byte(uint8_t b) {
   std::string s(2, '0');
@@ -361,17 +417,103 @@ int cmd_read() {
   return 0;
 }
 
+namespace {
+
+bool bindable_game(const SteamGame& g) {
+  if (g.appid == 0) return false;
+  std::string n = g.name;
+  for (char& c : n) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+  if (n.find("proton") != std::string::npos) return false;
+  if (n.find("steam linux runtime") != std::string::npos) return false;
+  if (n.find("steamworks") != std::string::npos) return false;
+  if (n.find("boot-windows") != std::string::npos) return false;
+  if (n.find("compattool") != std::string::npos) return false;
+  return true;
+}
+
+std::string pick_game_query() {
+  auto lib = SteamLibrary::cached_scan();
+  std::vector<SteamGame> shown;
+  int n = 0;
+  for (const auto& g : lib.games()) {
+    if (!bindable_game(g)) continue;
+    ++n;
+    std::cout << "  " << n << "  " << g.name << "\n";
+    shown.push_back(g);
+  }
+  if (shown.empty()) {
+    std::cerr << t("no_steam_games") << "\n";
+    return {};
+  }
+  std::cout << t("menu_ask_game_pick") << std::flush;
+  std::string line;
+  if (!std::getline(std::cin, line)) return {};
+  while (!line.empty() && std::isspace(static_cast<unsigned char>(line.front()))) line.erase(line.begin());
+  while (!line.empty() && std::isspace(static_cast<unsigned char>(line.back()))) line.pop_back();
+  if (line.empty()) return {};
+  char* end = nullptr;
+  const long v = std::strtol(line.c_str(), &end, 10);
+  if (end != line.c_str() && end && *end == '\0' && v >= 1 &&
+      v <= static_cast<long>(shown.size())) {
+    return std::to_string(shown[static_cast<std::size_t>(v) - 1].appid);
+  }
+  return line;
+}
+
+}  // namespace
+
 int cmd_add(const std::string& query) {
+  std::string q = query;
+  std::string kind, target, display;
+  const auto sp = q.find(' ');
+  if (sp != std::string::npos) {
+    const std::string first = q.substr(0, sp);
+    if (first == "lutris" || first == "heroic") {
+      const std::string rest = trim_arg(q.substr(sp + 1));
+      if (rest.empty()) {
+        std::cerr << t("add_kind_usage") << "\n";
+        return 2;
+      }
+      kind = first;
+      const auto sp2 = rest.find(' ');
+      if (sp2 == std::string::npos) {
+        target = rest;
+      } else {
+        target = rest.substr(0, sp2);
+        display = trim_arg(rest.substr(sp2 + 1));
+      }
+      if (display.empty()) display = target;
+      q.clear();
+    }
+  }
+  if (kind.empty() && q.empty()) {
+    if (!::isatty(STDIN_FILENO)) {
+      usage();
+      return 2;
+    }
+    q = pick_game_query();
+    if (q.empty()) {
+      std::cerr << t("menu_need_game") << "\n";
+      return 1;
+    }
+  }
   SteamGame game;
-  int rc = resolve_game(query, game);
-  if (rc != 0) return rc;
-  std::cout << t("game") << " " << game.name << "  " << game.appid << "  " << game.kind << "\n";
+  if (kind.empty()) {
+    int rc = resolve_game(q, game);
+    if (rc != 0) return rc;
+    std::cout << t("game") << " " << game.name << "  " << game.appid << "  " << game.kind
+              << "\n";
+  } else {
+    game.name = display;
+    std::cout << t("game") << " " << game.name << "  " << kind << "  " << target << "\n";
+  }
   auto store = TagStore::load(TagStore::default_path());
   UsbPause pause;
   auto reader = open_reader();
   auto uid = wait_for_tag(reader);
   const std::string hex = Acr122::uid_hex(uid);
-  store.upsert(Tag{hex, game.name, game.appid, game.kind});
+  Tag bound{hex, game.name, game.appid, game.kind, target};
+  store.upsert(std::move(bound));
   (void)write_ndef_game(reader, game.name);
   led_not_listening(reader);
   std::cout << t("saved") << game.name << "  " << hex << "\n";
@@ -461,6 +603,13 @@ int cmd_udev(const std::string& arg) {
   return 0;
 }
 
+int live_watch_pid() {
+  std::ifstream in(watch_pid_path());
+  int pid = 0;
+  if (in >> pid && pid > 0 && pid != ::getpid() && ::kill(pid, 0) == 0) return pid;
+  return 0;
+}
+
 namespace {
 
 int run_cmd(std::vector<const char*> argv, bool quiet) {
@@ -500,13 +649,6 @@ bool systemd_unit_present() {
   return !unit.empty() && std::filesystem::is_regular_file(unit, ec);
 }
 
-int live_watch_pid() {
-  std::ifstream in(watch_pid_path());
-  int pid = 0;
-  if (in >> pid && pid > 0 && pid != ::getpid() && ::kill(pid, 0) == 0) return pid;
-  return 0;
-}
-
 int wait_pid_gone(int pid, int ms) {
   using namespace std::chrono_literals;
   for (int waited = 0; waited < ms; waited += 100) {
@@ -530,15 +672,16 @@ std::filesystem::path watch_binary() {
     const std::filesystem::path p(app);
     if (std::filesystem::is_regular_file(p, ec) && ::access(app, X_OK) == 0) return p;
   }
-  if (const char* home = std::getenv("HOME"); home && *home) {
-    const auto p = std::filesystem::path(home) / "Applications" / "nfc-games-x86_64.AppImage";
-    if (std::filesystem::is_regular_file(p, ec) && ::access(p.c_str(), X_OK) == 0) return p;
-  }
   char buf[4096];
   const ssize_t n = ::readlink("/proc/self/exe", buf, sizeof(buf) - 1);
   if (n > 0) {
     buf[n] = 0;
-    return buf;
+    const std::filesystem::path p(buf);
+    if (std::filesystem::is_regular_file(p, ec) && ::access(buf, X_OK) == 0) return p;
+  }
+  if (const char* home = std::getenv("HOME"); home && *home) {
+    const auto p = std::filesystem::path(home) / "Applications" / "nfc-games-x86_64.AppImage";
+    if (std::filesystem::is_regular_file(p, ec) && ::access(p.c_str(), X_OK) == 0) return p;
   }
   return {};
 }
@@ -692,13 +835,7 @@ int nfc_run(const std::string& cmd, const std::string& arg) {
   if (cmd == "lock" || cmd == "laas" || cmd == "lås") return cmd_lock();
   if (cmd == "read" || cmd == "læs" || cmd == "laes") return cmd_read();
   if (cmd == "write" || cmd == "skriv") return cmd_write();
-  if (cmd == "add" || cmd == "tilfoj" || cmd == "tilføj") {
-    if (arg.empty()) {
-      usage();
-      return 2;
-    }
-    return cmd_add(arg);
-  }
+  if (cmd == "add" || cmd == "tilfoj" || cmd == "tilføj") return cmd_add(arg);
   if (cmd == "remove" || cmd == "rm" || cmd == "slet") return cmd_remove(arg);
   if (cmd == "tag" || cmd == "brik") {
     const auto sp = arg.find(' ');

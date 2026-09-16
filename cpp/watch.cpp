@@ -1,6 +1,7 @@
 #include "watch.hpp"
 #include "app.hpp"
 #include "i18n.hpp"
+#include "launch.hpp"
 #include "steam.hpp"
 #include "tags.hpp"
 
@@ -18,10 +19,67 @@ namespace {
 
 volatile std::sig_atomic_t g_watch_run = 1;
 
-// ACR122U firmware hangs after long PICC polling, so refresh the USB
-// connection periodically even while a tag is held.
-constexpr auto kRefreshEvery = 15min;
-constexpr auto kReopenSettle = 300ms;
+// ACR122U firmware hangs after hours of PICC polling. Cycle the RF field
+// (no USB reset) often enough to keep it alive. USB reopen is backup;
+// libusb_reset_device is last resort — it has killed the host xHCI controller.
+constexpr auto kRfRefreshIdle = 2min;
+constexpr auto kRfRefreshHold = 5min;
+constexpr auto kUsbReopenEvery = 45min;
+constexpr auto kHwResetCooldown = 10min;
+constexpr auto kReopenSettle = 400ms;
+// An unbound tag left on the reader retries at this interval, so registering it
+// with `nfc add` takes effect without lifting it. Retrying every poll would
+// re-read tags.conf ~3x/s and starve the RF keep-alive below.
+constexpr auto kRebindRetry = 3s;
+
+std::string trim_hook(std::string s) {
+  auto is_sp = [](unsigned char c) { return c == ' ' || c == '\t' || c == '\r' || c == '\n'; };
+  while (!s.empty() && is_sp(static_cast<unsigned char>(s.front()))) s.erase(s.begin());
+  while (!s.empty() && is_sp(static_cast<unsigned char>(s.back()))) s.pop_back();
+  return s;
+}
+
+// Optional commands in ~/.config/nfc-games/nfc.conf, re-read on every fire:
+//   hook_start=...   hook_stop=...
+std::string hook_command(bool start) {
+  const std::string want = start ? "hook_start" : "hook_stop";
+  std::ifstream in(lang_config_path());
+  if (!in) return {};
+  std::string line;
+  while (std::getline(in, line)) {
+    const auto eq = line.find('=');
+    if (eq == std::string::npos) continue;
+    if (trim_hook(line.substr(0, eq)) != want) continue;
+    return trim_hook(line.substr(eq + 1));
+  }
+  return {};
+}
+
+// Run a configured hook as a detached `sh -c` with $1=id, $2=game name.
+// id is the Steam appid for Steam kinds and the slug/app_name otherwise.
+void run_hook(bool start, const std::string& id, const std::string& name) {
+  const std::string cmd = hook_command(start);
+  if (cmd.empty()) return;
+  std::cout << (start ? "hook start " : "hook stop ") << id << "  " << name << "\n"
+            << std::flush;
+  const pid_t pid = ::fork();
+  if (pid != 0) return;
+  ::setsid();
+  ::execl("/bin/sh", "sh", "-c", cmd.c_str(), "nfc", id.c_str(), name.c_str(),
+          static_cast<char*>(nullptr));
+  ::_exit(127);
+}
+
+// Stop the active game if it is a Steam game (only Steam kinds can be stopped
+// automatically). Non-Steam kinds are left running; the user closes them.
+void stop_active(const Tag& active) {
+  if (launcher::is_steam_kind(active.kind)) {
+    SteamLibrary::stop(active.appid);
+    run_hook(false, std::to_string(active.appid), active.name);
+  } else {
+    std::cout << t("watch_nonsteam_keep") << "  " << active.name << "\n" << std::flush;
+  }
+}
 
 void watch_signal(int) { g_watch_run = 0; }
 
@@ -69,69 +127,139 @@ int cmd_watch() {
   } pid_owner;
 
   std::optional<Acr122> reader;
-  reader = Acr122::open();
-  set_led_safe(*reader, Acr122::Led::Green);
-  std::cout << "watch  firmware " << reader->firmware() << "\n" << std::flush;
-
   TagTracker tracker;
-  std::uint32_t active_appid = 0;
+  std::optional<Tag> active;
   int errors = 0;
+  int drop_streak = 0;
   int hold_polls = 0;
   bool deaf = true;
+  bool waiting_reader = false;
+  std::optional<Acr122::Led> shown_led;
   using clock = std::chrono::steady_clock;
   auto last_usb_open = clock::now();
+  auto last_rf_refresh = clock::now();
+  auto last_hw_reset = clock::time_point{};
+  auto last_rebind = clock::time_point{};
   auto idle_begin = clock::now();
+  std::string unknown_logged;
 
-  auto drop_reader = [&] {
+  auto show_led = [&](Acr122::Led led) {
     if (!reader) return;
-    try {
-      led_not_listening(*reader);
-    } catch (const Acr122Error&) {
+    if (shown_led && *shown_led == led) return;
+    set_led_safe(*reader, led);
+    shown_led = led;
+  };
+
+  auto drop_reader = [&](bool mark_deaf) {
+    if (!reader) return;
+    if (mark_deaf) {
+      try {
+        led_not_listening(*reader);
+      } catch (const Acr122Error&) {
+      }
+      deaf = true;
     }
     reader.reset();
-    deaf = true;
+    shown_led.reset();
     errors = 0;
     last_usb_open = clock::now();
-    // Let the USB reset / re-enumeration settle before reopening.
     std::this_thread::sleep_for(kReopenSettle);
   };
 
-  auto bind_active = [&]() {
+  auto maybe_hw_reset_and_drop = [&](bool mark_deaf) {
+    const auto now = clock::now();
+    ++drop_streak;
+    if (drop_streak >= 3 &&
+        (last_hw_reset == clock::time_point{} || now - last_hw_reset >= kHwResetCooldown) &&
+        reader) {
+      try {
+        reader->reset_hw();
+      } catch (const Acr122Error&) {
+      }
+      last_hw_reset = now;
+      std::cout << t("watch_usb_reset") << "\n" << std::flush;
+    } else {
+      std::cout << t("watch_usb_reopen") << "\n" << std::flush;
+    }
+    drop_reader(mark_deaf);
+  };
+
+  auto rf_refresh = [&] {
+    if (!reader) return false;
+    try {
+      reader->refresh();
+      last_rf_refresh = clock::now();
+      shown_led.reset();
+      return true;
+    } catch (const Acr122Error&) {
+      drop_reader(false);
+      return false;
+    }
+  };
+
+  // A daemon must not die on a bad tags.conf or a failed fork, so everything
+  // that touches the filesystem or Steam is contained here.
+  auto bind_one = [&]() {
     const std::string& hex = tracker.active;
     auto store = TagStore::load(TagStore::default_path());
     auto known = store.find_uid(hex);
-    if (!known || known->appid == 0) {
-      std::cout << t("watch_unknown_tag") << hex << "\n" << std::flush;
-      set_led_safe(*reader, Acr122::Led::Yellow);
-      active_appid = 0;
+    if (!known || (known->appid == 0 && known->target.empty())) {
+      // Warn once per tag, not once per retry.
+      if (unknown_logged != hex) {
+        std::cout << t("watch_unknown_tag") << hex << "\n" << std::flush;
+        unknown_logged = hex;
+      }
+      show_led(Acr122::Led::Yellow);
+      active.reset();
       return;
     }
+    unknown_logged.clear();
     std::cout << t("watch_tag_on") << hex << "  " << known->name << "\n" << std::flush;
     signal_tag_on(*reader);
-    SteamGame game;
-    game.appid = known->appid;
-    game.name = known->name;
-    game.kind = known->kind;
-    if (auto full = SteamLibrary::cached_scan().find(std::to_string(known->appid))) {
-      game = *full;
-    }
-    for (const auto& r : SteamLibrary::running()) {
-      if (r.appid != game.appid) SteamLibrary::stop(r.appid);
-    }
-    if (!SteamLibrary::is_running(game.appid)) {
-      std::cout << t("watch_start_steam") << game.name << "  " << SteamLibrary::steam_uri(game)
+    shown_led = Acr122::Led::Yellow;
+    if (launcher::is_steam_kind(known->kind)) {
+      SteamGame game;
+      game.appid = known->appid;
+      game.name = known->name;
+      game.kind = known->kind;
+      if (auto full = SteamLibrary::cached_scan().find(std::to_string(known->appid))) {
+        game = *full;
+      }
+      for (const auto& r : SteamLibrary::running()) {
+        if (r.appid != game.appid) SteamLibrary::stop(r.appid);
+      }
+      if (!SteamLibrary::is_running(game.appid)) {
+        std::cout << t("watch_start_steam") << game.name << "  "
+                  << SteamLibrary::steam_uri(game) << "\n"
+                  << std::flush;
+        SteamLibrary::launch(game);
+        run_hook(true, std::to_string(game.appid), game.name);
+      }
+    } else {
+      // lutris/heroic: launch only. The game is not stopped when the tag is
+      // lifted (there is no generic stop for these kinds).
+      std::cout << t("watch_start_other") << known->name << "  " << launcher::uri(*known)
                 << "\n"
                 << std::flush;
-      SteamLibrary::launch(game);
+      launcher::launch(*known);
+      run_hook(true, known->target, known->name);
     }
-    active_appid = game.appid;
-    set_led_safe(*reader, Acr122::Led::Yellow);
+    active = *known;
+    show_led(Acr122::Led::Yellow);
+  };
+
+  auto bind_active = [&]() {
+    try {
+      bind_one();
+    } catch (const std::exception& e) {
+      std::cerr << "watch: " << e.what() << "\n" << std::flush;
+    }
   };
 
   while (g_watch_run) {
     if (usb_pause_requested()) {
       if (reader) {
-        drop_reader();
+        drop_reader(true);
         std::cout << t("watch_paused") << "\n" << std::flush;
       }
       std::this_thread::sleep_for(200ms);
@@ -142,8 +270,17 @@ int cmd_watch() {
         reader = Acr122::open();
         deaf = true;
         errors = 0;
+        waiting_reader = false;
+        shown_led.reset();
+        last_usb_open = clock::now();
+        last_rf_refresh = clock::now();
+        std::cout << "watch  firmware " << reader->firmware() << "\n" << std::flush;
       } catch (const Acr122Error&) {
-        std::this_thread::sleep_for(250ms);
+        if (!waiting_reader) {
+          waiting_reader = true;
+          std::cout << t("watch_waiting_reader") << "\n" << std::flush;
+        }
+        std::this_thread::sleep_for(1s);
         continue;
       }
     }
@@ -155,7 +292,8 @@ int cmd_watch() {
       uid = reader->try_uid(!holding);
       if (holding) {
         ++hold_polls;
-        const bool stale_check = (hold_polls % 4 == 0);
+        // InList every ~3s so a swap A→B is seen without waiting for tag-off.
+        const bool stale_check = (hold_polls % 8 == 0);
         if (!uid || stale_check) {
           auto u2 = reader->try_uid(true);
           if (u2) uid = std::move(u2);
@@ -168,36 +306,22 @@ int cmd_watch() {
 
     if (!poll_ok) {
       ++errors;
-      try {
-        reader->recover();
-      } catch (const Acr122Error&) {
+      if (!rf_refresh() && !reader) {
+        std::this_thread::sleep_for(250ms);
+        continue;
       }
       if (holding) {
-        set_led_safe(*reader, Acr122::Led::Yellow);
-        if (errors >= 8) {
-          // Persistent failure while holding: last-resort USB reset, then reopen.
-          try {
-            reader->reset_hw();
-          } catch (const Acr122Error&) {
-          }
-          reader.reset();
-        }
+        show_led(Acr122::Led::Yellow);
+        if (errors >= 6) maybe_hw_reset_and_drop(false);
       } else if (errors >= 2) {
         if (!deaf) {
           deaf = true;
           std::cout << t("watch_not_listening") << "\n" << std::flush;
-          led_not_listening(*reader);
+          show_led(Acr122::Led::Red);
         }
-        // Hardware reset only after repeated reopen attempts fail.
-        if (errors >= 4) {
-          try {
-            reader->reset_hw();
-          } catch (const Acr122Error&) {
-          }
-        }
-        reader.reset();
+        if (errors >= 4) maybe_hw_reset_and_drop(false);
       } else {
-        set_led_safe(*reader, Acr122::Led::Green);
+        show_led(Acr122::Led::Green);
       }
       std::this_thread::sleep_for(250ms);
       continue;
@@ -206,66 +330,76 @@ int cmd_watch() {
       deaf = false;
       errors = 0;
       if (tracker.active.empty() && !uid) {
-        set_led_safe(*reader, Acr122::Led::Green);
+        show_led(Acr122::Led::Green);
         std::cout << t("watch_ready") << "\n" << std::flush;
       } else {
-        set_led_safe(*reader, Acr122::Led::Yellow);
+        show_led(Acr122::Led::Yellow);
         std::cout << t("watch_listening_again") << "\n" << std::flush;
       }
     }
     errors = 0;
+    drop_streak = 0;
     if (!holding) hold_polls = 0;
 
     const std::string hex = uid ? Acr122::uid_hex(*uid) : std::string{};
     const auto ev = tracker.feed(hex);
     if (ev == TagTracker::Event::On || ev == TagTracker::Event::Switch) {
-      if (ev == TagTracker::Event::Switch && active_appid != 0) {
-        std::cout << t("watch_switch_stop") << active_appid << "\n" << std::flush;
-        SteamLibrary::stop(active_appid);
-        active_appid = 0;
+      if (ev == TagTracker::Event::Switch && active) {
+        std::cout << t("watch_switch_stop") << active->name << "\n" << std::flush;
+        stop_active(*active);
+        active.reset();
       }
       if (ev == TagTracker::Event::Switch) {
-        std::cout << t("watch_usb_reset") << "\n" << std::flush;
-        drop_reader();
-        try {
-          reader = Acr122::open();
-          last_usb_open = clock::now();
-          deaf = false;
-        } catch (const Acr122Error&) {
+        rf_refresh();
+        if (!reader) {
           std::this_thread::sleep_for(250ms);
           continue;
         }
       }
       idle_begin = clock::now();
+      last_rebind = clock::now();
       bind_active();
     } else if (ev == TagTracker::Event::None && !tracker.active.empty() &&
-               active_appid == 0 && !hex.empty() && hex == tracker.active) {
+               !active && !hex.empty() && hex == tracker.active &&
+               clock::now() - last_rebind >= kRebindRetry) {
+      last_rebind = clock::now();
       bind_active();
     } else if (ev == TagTracker::Event::Off) {
       std::cout << t("watch_tag_off") << "\n" << std::flush;
-      if (active_appid != 0) {
-        std::cout << t("watch_stopping") << active_appid << "\n" << std::flush;
-        SteamLibrary::stop(active_appid);
+      if (active) {
+        std::cout << t("watch_stopping") << active->name << "\n" << std::flush;
+        stop_active(*active);
       }
-      active_appid = 0;
+      active.reset();
       hold_polls = 0;
       idle_begin = clock::now();
+      unknown_logged.clear();
       signal_tag_off(*reader);
-      drop_reader();
-    } else if (clock::now() - last_usb_open >= kRefreshEvery) {
-      std::cout << t("watch_usb_reset") << "\n" << std::flush;
-      drop_reader();
+      shown_led = Acr122::Led::Green;
+      rf_refresh();
+      show_led(Acr122::Led::Green);
+    } else if (clock::now() - last_usb_open >= kUsbReopenEvery) {
+      std::cout << t("watch_usb_reopen") << "\n" << std::flush;
+      drop_reader(false);
+    } else if (clock::now() - last_rf_refresh >=
+               (tracker.active.empty() ? kRfRefreshIdle : kRfRefreshHold)) {
+      rf_refresh();
+      if (reader) {
+        show_led(tracker.active.empty() ? Acr122::Led::Green : Acr122::Led::Yellow);
+      }
     } else if (!tracker.active.empty()) {
       idle_begin = clock::now();
     }
-    if (reader) listen_led(*reader, !tracker.active.empty());
+    if (reader) {
+      show_led(tracker.active.empty() ? Acr122::Led::Green : Acr122::Led::Yellow);
+    }
     const auto idle_for = clock::now() - idle_begin;
-    std::this_thread::sleep_for(idle_for > 30s ? 1000ms : 250ms);
+    std::this_thread::sleep_for(idle_for > 30s ? 1000ms : (holding ? 400ms : 250ms));
   }
 
-  if (active_appid != 0) {
-    std::cout << t("watch_stopping") << active_appid << "\n" << std::flush;
-    SteamLibrary::stop(active_appid);
+  if (active) {
+    std::cout << t("watch_stopping") << active->name << "\n" << std::flush;
+    stop_active(*active);
   }
   if (reader) led_not_listening(*reader);
   std::cout << t("watch_stopped") << "\n";

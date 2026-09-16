@@ -96,7 +96,4 @@ ls -lh "$OUT"
 if [[ "${NFC_AUTO_INSTALL:-1}" != "0" ]]; then
   echo "Installing AppImage (menu, udev)..."
   "$OUT" install || echo "nfc: auto-install skipped (run the AppImage once)" >&2
-  if command -v systemctl >/dev/null 2>&1; then
-    systemctl --user disable --now nfc-games.service >/dev/null 2>&1 || true
-  fi
 fi

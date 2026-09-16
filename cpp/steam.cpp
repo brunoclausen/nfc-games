@@ -174,7 +174,13 @@ struct Bvdf {
   }
 };
 
-bool parse_bvdf_object(const std::vector<std::uint8_t>& data, std::size_t& pos, Bvdf& obj) {
+// Real shortcuts.vdf nests about four levels. A corrupt file costs only two
+// bytes per level, so without this cap it can recurse the stack to death.
+constexpr int kBvdfMaxDepth = 32;
+
+bool parse_bvdf_object(const std::vector<std::uint8_t>& data, std::size_t& pos, Bvdf& obj,
+                       int depth = 0) {
+  if (depth > kBvdfMaxDepth) return false;
   while (pos < data.size()) {
     const std::uint8_t type = data[pos++];
     if (type == 0x08) return true;
@@ -182,7 +188,7 @@ bool parse_bvdf_object(const std::vector<std::uint8_t>& data, std::size_t& pos, 
     if (!read_cstr(data, pos, key)) return false;
     Bvdf node;
     if (type == 0x00) {
-      if (!parse_bvdf_object(data, pos, node)) return false;
+      if (!parse_bvdf_object(data, pos, node, depth + 1)) return false;
     } else if (type == 0x01) {
       if (!read_cstr(data, pos, node.str)) return false;
     } else if (type == 0x02) {
@@ -460,6 +466,18 @@ std::uint32_t appid_from_steamlaunch(const std::string& cmd) {
 
 }  // namespace
 
+// Whole-number match for "AppId=<n>". A plain substring search would let
+// AppId=220 match AppId=2200, i.e. report or stop the wrong game.
+bool SteamLibrary::cmd_matches_appid(const std::string& cmd, std::uint32_t appid) {
+  if (appid == 0) return false;
+  const std::string marker = "AppId=" + std::to_string(appid);
+  for (auto i = cmd.find(marker); i != std::string::npos; i = cmd.find(marker, i + 1)) {
+    const std::size_t end = i + marker.size();
+    if (end >= cmd.size() || !std::isdigit(static_cast<unsigned char>(cmd[end]))) return true;
+  }
+  return false;
+}
+
 std::string SteamLibrary::steam_uri(const SteamGame& game) {
   const bool shortcut = game.kind == "shortcut" || (game.appid & 0x80000000u) != 0;
   if (shortcut) {
@@ -502,7 +520,9 @@ std::vector<RunningGame> SteamLibrary::running() {
 
   auto lib = SteamLibrary::cached_scan();
   for (const auto& g : lib.games()) {
-    if (g.exe.empty() || seen.count(g.appid)) continue;
+    // appid 0 must never enter the list: stop(0) means "stop everything" and
+    // would recurse into itself.
+    if (g.appid == 0 || g.exe.empty() || seen.count(g.appid)) continue;
     const std::string needle = process_needle(g);
     if (needle.size() < 8) continue;
     for (const auto& p : procs) {
@@ -519,7 +539,6 @@ std::vector<RunningGame> SteamLibrary::running() {
 
 bool SteamLibrary::is_running(std::uint32_t appid) {
   if (appid == 0) return false;
-  const std::string marker = "AppId=" + std::to_string(appid);
   std::string needle;
   auto lib = SteamLibrary::cached_scan();
   for (const auto& g : lib.games()) {
@@ -529,7 +548,7 @@ bool SteamLibrary::is_running(std::uint32_t appid) {
   }
   for (const auto& p : snapshot_proc()) {
     if (appid_from_steamlaunch(p.cmd) == appid) return true;
-    if (p.cmd.find(marker) != std::string::npos) return true;
+    if (cmd_matches_appid(p.cmd, appid)) return true;
     if (needle.size() >= 8 && !protected_proc(p.pid, p.cmd) &&
         p.cmd.find(needle) != std::string::npos) {
       return true;
@@ -538,17 +557,15 @@ bool SteamLibrary::is_running(std::uint32_t appid) {
   return false;
 }
 
-std::vector<int> pids_for_appid(const std::vector<std::string>& needles) {
+std::vector<int> pids_for_appid(std::uint32_t appid, const std::vector<std::string>& needles) {
   std::vector<int> pids;
   std::unordered_set<int> seen;
   for (const auto& p : snapshot_proc()) {
     if (protected_proc(p.pid, p.cmd)) continue;
-    bool hit = false;
+    bool hit = SteamLibrary::cmd_matches_appid(p.cmd, appid);
     for (const auto& n : needles) {
-      if (n.size() >= 8 && p.cmd.find(n) != std::string::npos) {
-        hit = true;
-        break;
-      }
+      if (hit) break;
+      if (n.size() >= 8 && p.cmd.find(n) != std::string::npos) hit = true;
     }
     if (!hit) continue;
     std::vector<int> tree;
@@ -568,7 +585,6 @@ int SteamLibrary::stop(std::uint32_t appid) {
 
   auto lib = SteamLibrary::cached_scan();
   std::vector<std::string> needles;
-  needles.push_back("AppId=" + std::to_string(appid));
   auto dir = installdir_of(appid);
   if (dir.size() >= 8) needles.push_back(dir);
   for (const auto& g : lib.games()) {
@@ -577,7 +593,7 @@ int SteamLibrary::stop(std::uint32_t appid) {
     if (n.size() >= 8) needles.push_back(n);
   }
 
-  auto collect = [&] { return pids_for_appid(needles); };
+  auto collect = [&] { return pids_for_appid(appid, needles); };
   int n = 0;
   for (int pid : collect()) {
     if (pid == ::getpid() || pid == ::getppid()) continue;

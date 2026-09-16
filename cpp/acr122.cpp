@@ -225,8 +225,32 @@ void Acr122::icc_power_on() {
   }
 }
 
-void Acr122::recover() {
+void Acr122::set_rf_field(bool on) {
+  const uint8_t v = on ? 0x01 : 0x00;
+  (void)xfr({0xFF, 0x00, 0x00, 0x00, 0x04, 0xD4, 0x32, 0x01, v}, 1000);
+}
+
+void Acr122::in_release() {
+  (void)xfr({0xFF, 0x00, 0x00, 0x00, 0x03, 0xD4, 0x44, 0x00}, 500);
+}
+
+void Acr122::refresh() {
+  // Cycle RF instead of USB-resetting. Long PICC polling hangs ACR122U firmware;
+  // a field off/on unsticks it without stressing the host xHCI controller.
   drain();
+  try {
+    in_release();
+  } catch (const Acr122Error&) {
+  }
+  try {
+    set_rf_field(false);
+  } catch (const Acr122Error&) {
+  }
+  std::this_thread::sleep_for(std::chrono::milliseconds{80});
+  try {
+    set_rf_field(true);
+  } catch (const Acr122Error&) {
+  }
   try {
     icc_power_on();
   } catch (const Acr122Error&) {
@@ -236,10 +260,12 @@ void Acr122::recover() {
   } catch (const Acr122Error&) {
   }
   try {
-    (void)xfr({0xFF, 0x00, 0x00, 0x00, 0x04, 0xD4, 0x32, 0x01, 0x01}, 1000);
+    disable_card_detect_buzzer();
   } catch (const Acr122Error&) {
   }
 }
+
+void Acr122::recover() { refresh(); }
 
 Acr122::ApduReply Acr122::transmit(const std::vector<uint8_t>& apdu, int timeout_ms) {
   const uint32_t len = static_cast<uint32_t>(apdu.size());
@@ -335,17 +361,18 @@ std::optional<std::vector<uint8_t>> Acr122::parse_inlist(const std::vector<uint8
 }
 
 std::optional<std::vector<uint8_t>> Acr122::try_uid(bool reactivate) {
+  // Get UID (FF CA) only talks to an already-selected PICC. Cheap, no InList.
+  // Do not IccPowerOn on every poll — that is what hangs the firmware over hours.
   try {
-    if (reactivate) icc_power_on();
-    const int t_ms = reactivate ? 1000 : 400;
-    auto r = transmit({0xFF, 0xCA, 0x00, 0x00, 0x00}, t_ms);
+    auto r = transmit({0xFF, 0xCA, 0x00, 0x00, 0x00}, reactivate ? 400 : 300);
     if (r.sw1 == 0x90 && r.data.size() >= 4) return r.data;
   } catch (const Acr122Error&) {
     drain();
     throw;
   }
+  if (!reactivate) return std::nullopt;
   try {
-    auto r = transmit({0xFF, 0x00, 0x00, 0x00, 0x04, 0xD4, 0x4A, 0x01, 0x00}, 1500);
+    auto r = transmit({0xFF, 0x00, 0x00, 0x00, 0x04, 0xD4, 0x4A, 0x01, 0x00}, 800);
     if (r.sw1 == 0x90) {
       if (auto uid = parse_inlist(r.data)) return uid;
       if (r.data.size() >= 4 && r.data[0] != 0xD5) return r.data;

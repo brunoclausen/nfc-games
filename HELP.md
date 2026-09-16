@@ -15,8 +15,9 @@ cmake -S . -B build && cmake --build build
 
 | Kommando | Hvad den gør |
 | --- | --- |
-| `nfc menu` | Interaktiv menu (tal-valg) |
-| `nfc watch` | Tag på = gul + 2 beep + start spil; tag af = 1 beep + stop + grøn |
+| `nfc menu` | Kort hjemme-menu (lyt, bind tag, vis tags). Teknik under 8 Mere... |
+| `nfc lyt` | Start lyt i baggrunden (grøn LED). Starter også ved login. |
+| `nfc watch` | Lyt i denne terminal. Tag på = gul + 2 beep + start; tag af = 1 beep + stop + grøn. |
 | `nfc restart` / `nfc genstart` | Genstart watch (systemd-tjeneste, ellers pid) |
 | `nfc games` | Auto-scan alle Steam-spil og non-Steam shortcuts |
 | `nfc start "BloodRayne 2"` | Start spil via Steam (kun ét ad gangen) |
@@ -25,6 +26,12 @@ cmake -S . -B build && cmake --build build
 | `nfc stop` | Stop det kørende spil |
 | `nfc add "Silent Hill 4"` | Find spillet, vent på tag, bind tag → spil og skriv navn (NDEF) |
 | `nfc add 3640596865` | Samme, men med appid (når flere har samme navn) |
+| `nfc add lutris <slug> [navn]` | Bind tag → Lutris-spil (slug fx `hades`); start via `lutris://` |
+| `nfc add heroic <app_name> [navn]` | Bind tag → Heroic-spil (fx `Control`); start via `heroic://` |
+
+Lutris- og Heroic-tags kan kun startes ─ der er ingen automatisk stop. Når tagget løftes,
+kører spillet videre, indtil du lukker det manuelt. `nfc stop`, `nfc lock` og hooks' stop
+gælder kun Steam-spil.
 | `nfc write` | Skriv det bundne spilnavn på tagget, så telefonen ikke viser tom |
 | `nfc read` | Læs tag, vis UID, bundet spil og NDEF-tekst |
 | `nfc list` | Vis gemte tags |
@@ -120,7 +127,8 @@ Træk USB ud og sæt i igen. Grøn LED = klar. Gul + 2 beep = tag på. Grøn + 1
 Første kørsel (eller `./scripts/build-appimage.sh`) installerer AppImage til
 `~/Applications/nfc-games-x86_64.AppImage`, app-menu,
 og udev-reglen (adgangskode via pkexec). Tags gemmes i `~/.config/nfc-games/tags.conf`.
-Watch kører **ikke** i baggrunden; vælg **1** i menuen.
+Watch startes som systemd-brugerunit og kører **også ved login**.
+Slå det fra med `systemctl --user disable --now nfc-games.service`.
 
 ```bash
 ~/Applications/nfc-games-x86_64.AppImage            # menu

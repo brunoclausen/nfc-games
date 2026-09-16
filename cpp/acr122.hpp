@@ -32,17 +32,20 @@ class Acr122 {
   void set_led(Led led);
   void beep(std::chrono::milliseconds duration = std::chrono::milliseconds{200},
             int times = 1);
-  // Drop leftover CCID packets and turn the RF field back on.
+  // Drop leftover CCID packets and cycle the RF field (no USB reset).
   void recover();
+  // Same as recover(); used as a periodic firmware keep-alive.
+  void refresh();
   void flush();
   // Last-resort USB reset; only for a genuinely wedged reader (rare).
+  // Frequent resets have killed the host xHCI controller.
   void reset_hw();
   // Blink then leave `final` on. Buzzer sounds during the on-phase when buzz=true.
   void blink(Led blink_led, Led final, std::chrono::milliseconds on,
              std::chrono::milliseconds off, int repeats, bool buzz);
 
   // One poll. Empty if no tag in the field.
-  // reactivate: power-cycle the PICC first (needed to find a new tag; skip while holding).
+  // reactivate=false: Get UID only (tag still selected). true: also InListPassiveTarget.
   std::optional<std::vector<uint8_t>> try_uid(bool reactivate = true);
   // Wait until a tag is seen. timeout=0 waits forever.
   std::vector<uint8_t> wait_uid(std::chrono::milliseconds timeout);
@@ -75,6 +78,8 @@ class Acr122 {
   std::optional<std::vector<uint8_t>> pn532_payload(const ApduReply& r, uint8_t cmd);
   void icc_power_on();
   void drain();
+  void set_rf_field(bool on);
+  void in_release();
   std::optional<std::vector<uint8_t>> parse_inlist(const std::vector<uint8_t>& data);
   void disable_card_detect_buzzer();
   void bulk_write(const std::vector<uint8_t>& data, int timeout_ms);

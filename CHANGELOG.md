@@ -1,5 +1,49 @@
 # Changelog
 
+## 1.0.12
+
+- Home menu: listen, bind tag, show/read/remove tags, write name, language
+- Bind a tag by picking a number from the Steam game list
+- Watch starts at login (systemd enabled); opening the menu no longer stops it
+- Desktop name/actions in Danish; udev/firmware moved under More...
+- Fix: `AppId=` was matched as a substring, so stopping appid 220 could kill
+  appid 2200. It is now matched as a whole number.
+- Fix: an unbound tag left on the reader logged and re-read `tags.conf` on
+  every poll, which also starved the RF keep-alive. Retries every 3s, logs once.
+- Fix: `#` in a game name truncated the tag name, and a leading `#` (e.g.
+  "#DRIVE") threw and killed the watch daemon. `#` now only comments out a
+  whole line, and one bad line no longer discards the whole file.
+- Fix: a corrupt `shortcuts.vdf` could recurse the stack to death; the binary
+  VDF and NDEF parsers now have depth limits.
+- Fix: the menu closed instead of reporting the error on any non-reader
+  exception; watch survives a bad `tags.conf` or a failed fork.
+- Hooks: command lines in the config run on game start/stop and on switch
+  (e.g. LED scripts or announcements)
+- Lutris and Heroic games: `nfc add lutris <slug>` / `nfc add heroic <app_name>`
+  binds a tag to a non-Steam launcher game (starts via `lutris://`/`heroic://`,
+  no automatic stop)
+
+## 1.0.11
+
+- Watch stays running if the ACR122U is missing (wait/retry instead of exit)
+- Periodic RF field cycle instead of USB reopen every 15 minutes (firmware hang)
+- Presence check while a tag is held uses Get UID only (no InList every poll)
+- LED APDUs only on colour change (was every poll)
+- `libusb_reset_device` at most once per 10 minutes, after repeated USB reopens
+- udev installer blacklists `pn533_usb` so the kernel NFC stack cannot grab the reader
+- systemd unit: RestartSec=15 and a start limit (watch still does not autostart)
+- AppImage install puts `nfc` on PATH (`~/bin/nfc` → AppImage) and refreshes staged udev files on upgrade
+
+## 1.0.10
+
+- `nfc tag backup` / `nfc tag restore` for full NTAG page dumps
+- Container AppImage build targeting glibc ≤ 2.34
+
+## 1.0.9
+
+- Stop sending PN532 `SAMConfiguration` (it froze ACR122U firmware)
+- Do not `libusb_reset_device` on every close (that killed the host xHCI controller)
+
 ## 1.0.7
 
 - Type 2 NDEF read/write on ACR122U also uses raw Ultralight commands (Fudan NTAG clones)

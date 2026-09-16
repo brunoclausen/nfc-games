@@ -15,8 +15,9 @@ cmake -S . -B build && cmake --build build
 
 | Command | What it does |
 | --- | --- |
-| `nfc menu` | Interactive menu (numbered) |
-| `nfc watch` | Tag on = yellow + 2 beeps + start game; tag off = 1 beep + stop + green |
+| `nfc menu` | Short home menu (listen, bind tag, show tags). Extra tools under 8 More... |
+| `nfc lyt` | Start listening in the background (green LED). Also starts at login. |
+| `nfc watch` | Listen in this terminal. Tag on = yellow + 2 beeps + start; tag off = 1 beep + stop + green. |
 | `nfc restart` / `nfc genstart` | Restart watch (systemd user unit, else pid) |
 | `nfc games` | Auto-scan all Steam games and non-Steam shortcuts |
 | `nfc start "BloodRayne 2"` | Start game via Steam (only one at a time) |
@@ -25,6 +26,12 @@ cmake -S . -B build && cmake --build build
 | `nfc stop` | Stop the running game |
 | `nfc add "Silent Hill 4"` | Find the game, wait for a tag, bind tag → game and write the name (NDEF) |
 | `nfc add 3640596865` | Same, but with appid (when several share a name) |
+| `nfc add lutris <slug> [name]` | Bind tag → Lutris game (slug e.g. `hades`); starts via `lutris://` |
+| `nfc add heroic <app_name> [name]` | Bind tag → Heroic game (e.g. `Control`); starts via `heroic://` |
+
+Lutris and Heroic tags can only be started — there is no automatic stop. When the
+tag is lifted the game keeps running until you close it manually. `nfc stop`, `nfc lock`
+and hook's stop only apply to Steam games.
 | `nfc write` | Write the bound game name onto the tag so a phone is not empty |
 | `nfc read` | Read tag, show UID, bound game and NDEF text |
 | `nfc list` | Show saved tags |
@@ -117,7 +124,8 @@ Unplug USB and plug it back in. Green LED = ready. Yellow + 2 beeps = tag on. Gr
 The first run (or `./scripts/build-appimage.sh`) installs the AppImage to
 `~/Applications/nfc-games-x86_64.AppImage`, the app menu,
 and the udev rule (password via pkexec). Tags are stored in `~/.config/nfc-games/tags.conf`.
-Watch does **not** run in the background; choose **1** in the menu.
+Watch runs as a systemd user unit and **also starts at login**.
+Turn it off with `systemctl --user disable --now nfc-games.service`.
 
 ```bash
 ~/Applications/nfc-games-x86_64.AppImage            # menu

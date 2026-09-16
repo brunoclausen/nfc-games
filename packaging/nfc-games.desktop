@@ -1,7 +1,9 @@
 [Desktop Entry]
 Type=Application
 Name=NFC Games
-Comment=ACR122U NFC tags and Steam games
+Name[da]=NFC-spil
+Comment=Place an NFC tag on the reader to start a Steam game
+Comment[da]=Læg et NFC-tag på læseren for at starte et Steam-spil
 Exec=nfc menu
 Icon=nfc-games
 Terminal=true
@@ -9,34 +11,19 @@ Categories=Game;
 Keywords=nfc;steam;acr122u;tag;
 StartupNotify=false
 X-AppImage-Name=nfc-games
-Actions=Watch;Restart;Menu;Games;List;UdevInstall;
+Actions=Listen;Restart;Menu;
 
-[Desktop Action Watch]
-Name=Watch
-Name[da]=Watch (lyt)
-Exec=nfc watch
+[Desktop Action Listen]
+Name=Listen for tags
+Name[da]=Lyt efter tags
+Exec=nfc lyt
 
 [Desktop Action Restart]
-Name=Restart watch
-Name[da]=Genstart watch
-Name[de]=Watch neu starten
+Name=Restart listener
+Name[da]=Genstart lyt
 Exec=nfc restart
 
 [Desktop Action Menu]
 Name=Menu
+Name[da]=Menu
 Exec=nfc menu
-
-[Desktop Action Games]
-Name=List games
-Name[da]=Vis spil
-Exec=nfc games
-
-[Desktop Action List]
-Name=List tags
-Name[da]=Vis tags
-Exec=nfc list
-
-[Desktop Action UdevInstall]
-Name=Install ACR122U udev rule
-Name[da]=Installér udev-regel
-Exec=nfc udev install

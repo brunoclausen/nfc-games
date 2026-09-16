@@ -31,6 +31,8 @@ class SteamLibrary {
   std::vector<SteamGame> matches(std::string_view name_or_appid) const;
   static std::string steam_uri(const SteamGame& game);
   static std::string process_needle(const SteamGame& game);
+  // True when a /proc cmdline carries exactly this AppId (not a longer one).
+  static bool cmd_matches_appid(const std::string& cmd, std::uint32_t appid);
   static void launch(const SteamGame& game);
   static std::vector<RunningGame> running();
   static bool is_running(std::uint32_t appid);

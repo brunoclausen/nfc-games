@@ -1,4 +1,5 @@
 #include "i18n.hpp"
+#include "launch.hpp"
 #include "ndef.hpp"
 #include "steam.hpp"
 #include "tags.hpp"
@@ -6,6 +7,7 @@
 
 #include <cstdlib>
 #include <filesystem>
+#include <fstream>
 #include <iostream>
 #include <string>
 #include <unistd.h>
@@ -121,12 +123,105 @@ int main() {
     check(tiny.empty(), "too-small tag yields empty encode");
   }
 
+  {
+    // AppId= must match a whole number: 220 (Half-Life 2) must not match
+    // 2200 (Quake III), or `nfc stop` kills the wrong game's process tree.
+    const std::string q3 = "reaper SteamLaunch AppId=2200 -- /usr/bin/quake3";
+    check(SteamLibrary::cmd_matches_appid(q3, 2200), "AppId matches itself");
+    check(!SteamLibrary::cmd_matches_appid(q3, 220), "AppId=220 does not match AppId=2200");
+    check(!SteamLibrary::cmd_matches_appid(q3, 22), "AppId=22 does not match AppId=2200");
+    check(!SteamLibrary::cmd_matches_appid(q3, 0), "appid 0 never matches");
+    const std::string hl2 = "reaper SteamLaunch AppId=220 -- /usr/bin/hl2";
+    check(SteamLibrary::cmd_matches_appid(hl2, 220), "trailing AppId at end of cmdline");
+    check(!SteamLibrary::cmd_matches_appid(hl2, 2200), "shorter cmdline does not match longer id");
+  }
+
+  {
+    // tags.conf: '#' only comments out a whole line. Real Steam titles such as
+    // "#DRIVE" used to throw and take the watch daemon down with them.
+    const auto hashes = tmp / "hash.conf";
+    {
+      std::ofstream out(hashes);
+      out << "# uid  kind  appid  name\n";
+      out << "04AABBCCDD  steam  547650  #DRIVE\n";
+      out << "04AABBCCDE  steam  400  Portal #2 Deluxe\n";
+      out << "not-a-valid-line\n";
+      out << "04AABBCCDF  steam  620  Portal 2\n";
+    }
+    auto store = TagStore::load(hashes);
+    check(store.all().size() == 3, "malformed line skipped, rest still loads");
+    auto drive = store.find_uid("04AABBCCDD");
+    check(drive && drive->name == "#DRIVE", "name may start with '#'");
+    auto portal = store.find_uid("04AABBCCDE");
+    check(portal && portal->name == "Portal #2 Deluxe", "name keeps an inner '#'");
+  }
+
+  {
+    // A corrupt shortcuts.vdf costs two bytes per nesting level, so an
+    // unbounded parser recursed the stack to death. This must just return.
+    const auto root = tmp / "fakesteam";
+    fs::create_directories(root / "userdata" / "1" / "config");
+    {
+      std::ofstream out(root / "userdata" / "1" / "config" / "shortcuts.vdf",
+                        std::ios::binary);
+      out.put('\0');
+      out << "shortcuts";
+      out.put('\0');
+      for (int i = 0; i < 200000; ++i) {
+        out.put('\0');
+        out.put('\0');
+      }
+    }
+    ::setenv("HOME", tmp.c_str(), 1);
+    ::setenv("STEAM_DIR", root.c_str(), 1);
+    auto lib = SteamLibrary::scan();
+    check(lib.games().empty(), "deeply nested shortcuts.vdf is rejected, not fatal");
+    ::unsetenv("STEAM_DIR");
+  }
+
   check(normalize_uid("04aa:bb-cc dd") == "04AABBCCDD", "normalize_uid strips junk");
   check(normalize_uid("1d2b7022960000") == "1D2B7022960000", "normalize_uid upper");
   {
     auto empty = TagStore::load(tmp / "missing.conf");
     check(empty.all().empty(), "missing tags.conf is empty");
     check(!empty.find_uid("00"), "empty store has no uid");
+  }
+
+  {
+    // lutris/heroic kinds: target (slug/app_name) roundtrips in tags.conf.
+    const auto conf = tmp / "other.conf";
+    {
+      auto store = TagStore::load(conf);
+      store.upsert(Tag{"04B1B2B30001", "Hades 2", 0, "lutris", "hades"});
+      store.upsert(Tag{"04B1B2B30002", "Control Ultimate Edition", 0, "heroic", "Control"});
+    }
+    {
+      auto store = TagStore::load(conf);
+      auto lut = store.find_uid("04b1b2b30001");
+      check(lut && lut->kind == "lutris" && lut->target == "hades" && lut->appid == 0,
+            "lutris slug roundtrip");
+      auto her = store.find_uid("04b1b2b30002");
+      check(her && her->kind == "heroic" && her->target == "Control",
+            "heroic app_name roundtrip");
+      check(store.find("hades").has_value(), "find by lutris target");
+      check(store.remove("hades"), "remove by lutris target");
+      check(!store.find_uid("04B1B2B30001"), "lutris removed");
+    }
+  }
+
+  {
+    const Tag steam{"AA", "Half-Life 2", 220, "steam", ""};
+    check(launcher::uri(steam) == "steam://rungameid/220", "steam tag URI");
+    check(launcher::target_id(steam) == "220", "steam target id");
+    const Tag sc{"AA", "Shortcut", 3640596865u, "shortcut", ""};
+    check(launcher::uri(sc) == "steam://rungameid/15636244473128681472",
+          "shortcut tag URI uses GameID");
+    const Tag lut{"AA", "Hades", 0, "lutris", "hades"};
+    check(launcher::uri(lut) == "lutris://rungame/hades", "lutris tag URI");
+    check(launcher::target_id(lut) == "hades", "lutris target id");
+    const Tag her{"AA", "Control", 0, "heroic", "Control"};
+    check(launcher::uri(her) == "heroic://launch/Control", "heroic tag URI");
+    check(launcher::is_steam_kind("lutris") == false, "lutris is not a Steam kind");
   }
 
   ::setenv("XDG_CONFIG_HOME", tmp.c_str(), 1);
@@ -140,12 +235,19 @@ int main() {
   check(std::string(t("restart_ok")).find("restarted") != std::string::npos, "english restart_ok");
   check(std::string(t("watch_started")).find("started") != std::string::npos, "english watch_started");
   check(std::string(t("watch_usb_reset")).find("USB") != std::string::npos, "english watch_usb_reset");
+  check(std::string(t("watch_usb_reopen")).find("USB") != std::string::npos, "english watch_usb_reopen");
+  check(std::string(t("watch_waiting_reader")).find("waiting") != std::string::npos,
+        "english watch_waiting_reader");
   check(set_lang("da"), "set_lang da");
   check(std::string(t("watch_already")).find("kører") != std::string::npos, "danish watch_already");
+  check(std::string(t("watch_waiting_reader")).find("venter") != std::string::npos,
+        "danish watch_waiting_reader");
   check(std::string(t("restart_ok")).find("genstartet") != std::string::npos, "danish restart_ok");
-  check(std::string(t("menu_text")).find("watch") != std::string::npos, "danish menu_text");
+  check(std::string(t("menu_text")).find("Lyt") != std::string::npos, "danish menu_text");
+  check(std::string(t("menu_more_text")).find("Mere") != std::string::npos, "danish menu_more_text");
   check(set_lang("en"), "set_lang en again");
-  check(std::string(t("menu_text")).find("ready") != std::string::npos, "english menu_text");
+  check(std::string(t("menu_text")).find("Listen") != std::string::npos, "english menu_text");
+  check(std::string(t("menu_more_text")).find("More") != std::string::npos, "english menu_more_text");
   check(set_lang("de"), "set_lang de");
   check(std::string(t("wait_tag")).find("Tag") != std::string::npos, "german wait_tag");
   check(set_lang("sv"), "set_lang sv");

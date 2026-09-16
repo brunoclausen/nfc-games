@@ -5,6 +5,7 @@
 /.cache/
 compile_commands.json
 .clangd
+__pycache__/
 *.o
 nfc
 tags.conf

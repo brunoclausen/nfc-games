@@ -26,6 +26,8 @@ std::string lower(std::string s) {
 
 bool is_kind(const std::string& s) { return s == "steam" || s == "shortcut"; }
 
+bool is_target_kind(const std::string& s) { return s == "lutris" || s == "heroic"; }
+
 }  // namespace
 
 std::string normalize_uid(std::string_view raw) {
@@ -73,25 +75,39 @@ TagStore TagStore::load(const std::filesystem::path& path) {
   if (!in) return store;
   std::string line;
   while (std::getline(in, line)) {
-    auto hash = line.find('#');
-    if (hash != std::string::npos) line = line.substr(0, hash);
     line = trim(line);
-    if (line.empty()) continue;
+    // '#' comments out a whole line only. The name field is free text and real
+    // Steam titles start with or contain '#' (e.g. "#DRIVE").
+    if (line.empty() || line[0] == '#') continue;
     std::istringstream iss(line);
     std::string uid, second;
     iss >> uid >> second;
     Tag t;
     t.uid = normalize_uid(uid);
-    if (is_kind(second)) {
-      t.kind = second;
-      iss >> t.appid;
-      std::string name;
-      std::getline(iss, name);
-      t.name = normalize_name(trim(name));
-    } else {
-      std::string rest;
-      std::getline(iss, rest);
-      t.name = normalize_name(trim(second + rest));
+    try {
+      if (is_kind(second)) {
+        t.kind = second;
+        iss >> t.appid;
+        std::string name;
+        std::getline(iss, name);
+        t.name = normalize_name(trim(name));
+      } else if (is_target_kind(second)) {
+        // uid  lutris  <slug>  <name>    |    uid  heroic  <app_name>  <name>
+        t.kind = second;
+        std::string target;
+        iss >> target;
+        if (target.empty()) continue;
+        std::string name;
+        std::getline(iss, name);
+        t.target = target;
+        t.name = normalize_name(trim(name));
+      } else {
+        std::string rest;
+        std::getline(iss, rest);
+        t.name = normalize_name(trim(second + rest));
+      }
+    } catch (const std::exception&) {
+      continue;  // one malformed line must not take down the whole store
     }
     store.tags_.push_back(std::move(t));
   }
@@ -116,7 +132,11 @@ std::optional<Tag> TagStore::find_name(const std::string& name) const {
 
 std::optional<Tag> TagStore::find(const std::string& name_or_uid) const {
   if (auto t = find_name(name_or_uid)) return t;
-  return find_uid(name_or_uid);
+  if (auto t = find_uid(name_or_uid)) return t;
+  for (const auto& t : tags_) {
+    if (t.target == name_or_uid) return t;
+  }
+  return std::nullopt;
 }
 
 void TagStore::upsert(Tag tag) {
@@ -126,7 +146,9 @@ void TagStore::upsert(Tag tag) {
   tags_.erase(std::remove_if(tags_.begin(), tags_.end(),
                              [&](const Tag& t) {
                                return t.uid == tag.uid || lower(t.name) == lower(tag.name) ||
-                                      (tag.appid != 0 && t.appid == tag.appid);
+                                      (tag.appid != 0 && t.appid == tag.appid) ||
+                                      (!tag.target.empty() && t.kind == tag.kind &&
+                                       t.target == tag.target);
                              }),
               tags_.end());
   tags_.push_back(std::move(tag));
@@ -140,7 +162,8 @@ bool TagStore::remove(const std::string& name_or_uid) {
   tags_.erase(std::remove_if(tags_.begin(), tags_.end(),
                              [&](const Tag& t) {
                                return lower(t.name) == key_name || t.uid == key_uid ||
-                                      std::to_string(t.appid) == key_name;
+                                      std::to_string(t.appid) == key_name ||
+                                      lower(t.target) == key_name;
                              }),
               tags_.end());
   if (tags_.size() == before) return false;
@@ -155,10 +178,13 @@ void TagStore::save() const {
   tmp += ".tmp";
   std::ofstream out(tmp, std::ios::trunc);
   if (!out) throw std::runtime_error(t_join("cannot_write", path_.string()));
-  out << "# uid  kind  appid  name\n";
+  out << "# uid  kind  id  name\n";
   for (const auto& tag : tags_) {
-    out << tag.uid << "  " << (tag.kind.empty() ? "steam" : tag.kind) << "  " << tag.appid
-        << "  " << tag.name << "\n";
+    const std::string id = (tag.kind == "lutris" || tag.kind == "heroic")
+                               ? tag.target
+                               : std::to_string(tag.appid);
+    out << tag.uid << "  " << (tag.kind.empty() ? "steam" : tag.kind) << "  " << id << "  "
+        << tag.name << "\n";
   }
   out.close();
   if (!out) throw std::runtime_error(t_join("cannot_write", path_.string()));

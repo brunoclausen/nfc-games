@@ -36,7 +36,6 @@ void set_led_safe(Acr122& r, Acr122::Led led);
 void beep_safe(Acr122& r, std::chrono::milliseconds duration, int times = 1);
 void signal_tag_on(Acr122& r);
 void signal_tag_off(Acr122& r);
-void listen_led(Acr122& r, bool tag_on);
 void led_not_listening(Acr122& r);
 void demo(Acr122& r);
 void print_tag(const std::string& uid, const TagStore& store);
