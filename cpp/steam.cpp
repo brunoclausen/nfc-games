@@ -87,6 +87,7 @@ std::vector<fs::path> steam_roots() {
       home / ".steam" / "steam",
       home / ".local" / "share" / "Steam",
       home / ".var" / "app" / "com.valvesoftware.Steam" / "data" / "Steam",
+      home / "snap" / "steam" / "common" / ".steam" / "steam",
   };
   if (const char* env = std::getenv("STEAM_DIR")) cands.insert(cands.begin(), fs::path(env));
 
