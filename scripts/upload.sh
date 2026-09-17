@@ -166,11 +166,11 @@ path, want, work = sys.argv[1], sys.argv[2], sys.argv[3]
 d = json.load(open(path))
 open(f"{work}/release-id", "w").write(str(d["id"]))
 ids = [str(a["id"]) for a in d.get("assets", []) if a.get("name") == want]
-open(f"{work}/asset-ids", "w").write("\n".join(ids))
+open(f"{work}/asset-ids", "w").write("\n".join(ids) + "\n")
 PY
   rid="$(cat "$work/release-id")"
   if [[ -s "$work/asset-ids" ]]; then
-    while read -r aid; do
+    while read -r aid || [[ -n "$aid" ]]; do
       [[ -z "$aid" ]] && continue
       if [[ "$mode" == "gitea" ]]; then
         gitea_curl -o /dev/null -X DELETE "$api_base/repos/${repo}/releases/assets/${aid}" || true
