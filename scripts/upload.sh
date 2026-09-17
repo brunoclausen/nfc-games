@@ -210,7 +210,7 @@ load_optional_github_token() {
   elif [[ -f "$TOKEN_FILE" ]]; then
     raw="$(tr -d '[:space:]' < "$TOKEN_FILE")"
   fi
-  if [[ -n "$raw" && "$raw" == ghp_* ]]; then
+  if [[ -n "$raw" && ( "$raw" == ghp_* || "$raw" == github_pat_* ) ]]; then
     TOKEN="$raw"
   else
     TOKEN=""
