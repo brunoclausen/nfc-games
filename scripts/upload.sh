@@ -173,7 +173,7 @@ PY
     while read -r aid || [[ -n "$aid" ]]; do
       [[ -z "$aid" ]] && continue
       if [[ "$mode" == "gitea" ]]; then
-        gitea_curl -o /dev/null -X DELETE "$api_base/repos/${repo}/releases/assets/${aid}" || true
+        gitea_curl -o /dev/null -X DELETE "$api_base/repos/${repo}/releases/${rid}/assets/${aid}" || true
       else
         auth_curl -o /dev/null -X DELETE "$api_base/repos/${repo}/releases/assets/${aid}" || true
       fi
