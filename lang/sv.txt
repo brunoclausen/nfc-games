@@ -19,6 +19,12 @@ Taggar och spel:
   nfc stop [spel|appid]       stoppa spel
   nfc lock                    visa låst/körande spel
   nfc add <spel|appid>        hitta spel, läs tagg, bind och skriv namn
+  nfc add action '<på> || <av>' bind ett tagg till skalkommandon (av körs när taggen lyfts)
+  nfc start action <kommando> kör en skalkommando nu (ingen tagg krävs)
+  nfc add emu '<kommando>'      bind ett tagg till ett emulatorspel (stoppas när taggen lyfts)
+  nfc start emu <kommando>      starta ett emulatorspel nu (ingen tagg krävs)
+  nfc lutris                  visa Lutris-spel (wine/native, inte Steam)
+  nfc emu                     visa emulatorspel från ~/Emulation/roms
   nfc write                   skriv spelnamn på taggen (så telefonen inte är tom)
   nfc read                    läs tagg (UID + spel + NDEF)
   nfc list                    sparade taggar
@@ -50,12 +56,15 @@ menu_text<<<
 NFC-spel
   1  Lyssna efter taggar (grön = redo)
   2  Bind en ny tagg till ett spel
-  3  Visa dina taggar
-  4  Läs taggen på läsaren
-  5  Ta bort en tagg
-  6  Skriv spelnamnet på taggen (telefon)
-  7  Språk
-  8  Mer...
+  3  Bind en ny tagg till en åtgärd
+  4  Bind en ny tagg till ett emulatorspel
+  5  Bind en ny tagg till ett Lutris-spel
+  6  Visa dina taggar
+  7  Läs taggen på läsaren
+  8  Ta bort en tagg
+  9  Skriv spelnamnet på taggen (telefon)
+ 10  Språk
+ 11  Mer...
   0  Avsluta
 <<<
 menu_more_text<<<
@@ -77,6 +86,9 @@ Mer
 <<<
 menu_prompt=Nummer: 
 menu_ask_game=spel eller appid: 
+menu_ask_action=skalkommando: 
+menu_ask_emu=emulatorspel eller kommando (tomt = välj från listan): 
+menu_ask_lutris=Lutris-spel eller slug (tomt = välj från listan): 
 menu_ask_game_pick=nummer från listan, eller spelnamn: 
 menu_ask_remove=spelnamn (tomt = tagg på läsare): 
 menu_ask_restore=sökväg till .hex-fil: 
@@ -190,3 +202,17 @@ start_other=startar via
 watch_start_other=watch  startar 
 stop_not_stoppable=nfc: den här speltypen kan inte stoppas automatiskt — stäng den manuellt.
 watch_nonsteam_keep=watch  låter den köra (inget automatiskt stopp)
+
+# action-typ (skalkommando bundet till ett tagg)
+add_action_usage=nfc add action '<på> || <av>'  |  nfc start action <kommando>
+start_action=kör åtgärd 
+watch_action_run=watch  kör åtgärd
+watch_action_stop=watch  stoppar åtgärd
+
+# emu-typ (emulatorkommando bundet till ett tagg)
+add_emu_usage=nfc add emu <kommando>  |  nfc start emu <kommando>
+start_emu=startar emulator 
+watch_start_emu=watch  startar emulator 
+watch_emu_stop=watch  stoppar emulator
+no_lutris_games=nfc: inga Lutris-spel hittades
+no_emu_games=nfc: inga emulatorspel hittades

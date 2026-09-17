@@ -15,7 +15,7 @@ cmake -S . -B build && cmake --build build
 
 | Kommando | Hvad den gør |
 | --- | --- |
-| `nfc menu` | Kort hjemme-menu (lyt, bind tag, vis tags). Teknik under 8 Mere... |
+| `nfc menu` | Kort hjemme-menu (lyt, bind tag, vis tags). Teknik under 10 Mere... |
 | `nfc lyt` | Start lyt i baggrunden (grøn LED). Starter også ved login. |
 | `nfc watch` | Lyt i denne terminal. Tag på = gul + 2 beep + start; tag af = 1 beep + stop + grøn. |
 | `nfc restart` / `nfc genstart` | Genstart watch (systemd-tjeneste, ellers pid) |
@@ -27,11 +27,23 @@ cmake -S . -B build && cmake --build build
 | `nfc add "Silent Hill 4"` | Find spillet, vent på tag, bind tag → spil og skriv navn (NDEF) |
 | `nfc add 3640596865` | Samme, men med appid (når flere har samme navn) |
 | `nfc add lutris <slug> [navn]` | Bind tag → Lutris-spil (slug fx `hades`); start via `lutris://` |
+| `nfc lutris` | Vis ikke-Steam-spil fra Lutris (`lutris -l -o`); `nfc add lutris` uden slug vælger fra listen |
 | `nfc add heroic <app_name> [navn]` | Bind tag → Heroic-spil (fx `Control`); start via `heroic://` |
+| `nfc add action '<on> \|\| <off>'` | Bind tag → skal-handling (køres via `sh -c` på tag-på; `<off>` køres på tag-af) |
+| `nfc add emu '<kommando>'` | Bind tag → emulator-spil (køres på tag-på; stoppes automatisk på tag-af) |
+| `nfc emu` | Vis emulator-spil under `~/Emulation/roms` (launcher + args fra SRM-configen); `nfc add emu` uden argument vælger fra listen |
 
 Lutris- og Heroic-tags kan kun startes ─ der er ingen automatisk stop. Når tagget løftes,
 kører spillet videre, indtil du lukker det manuelt. `nfc stop`, `nfc lock` og hooks' stop
 gælder kun Steam-spil.
+
+Action-tags kører én skalkommando (`<on>`) og en valgfri `<off>`-kommando når tagget løftes.
+Emu-tags kører emulator-kommandoen ved tag-på (fx `dolphin -e spil.iso`) og stopper hele
+processgruppen automatisk ved tag-af.
+
+`nfc lutris` og `nfc emu` viser det, der allerede er installeret. For emu-spil kommer
+launcher og argumenter fra Steam ROM Manager (`userConfigurations.json`), så samme
+EmuDeck/ES-DE-opsætning genbruges; overstyr med `NFC_ROMS_DIR` / `NFC_SRM_CONFIG`.
 | `nfc write` | Skriv det bundne spilnavn på tagget, så telefonen ikke viser tom |
 | `nfc read` | Læs tag, vis UID, bundet spil og NDEF-tekst |
 | `nfc list` | Vis gemte tags |
@@ -64,6 +76,10 @@ Format:
 ```
 # uid  kind  appid  name
 04AABBCCDD  steam  1373550  BloodRayne 2: Terminal Cut
+# uid  action  <on command> [|| <off command>]
+04AABBCCEE  action  lamp on || lamp off
+# uid  emu  <emulator command>
+04AABBCCFF  emu  dolphin -e ~/roms/MarioKartWii.iso
 ```
 
 Filen oprettes først, når et tag bliver gemt med `nfc add`.
@@ -101,8 +117,9 @@ genveje og starter dem kun via Steam, f.eks.:
 steam steam://rungameid/15636244473128681472
 ```
 
-(det 64-bit id SRM/Steam putter i `.desktop`-filen). NFC kører ikke emulatoren
-direkte. Parse nye roms i SRM, genstart Steam, så ligger de i `nfc games`.
+(det 64-bit id SRM/Steam putter i `.desktop`-filen). For Steam-genveje kører NFC
+ikke emulatoren direkte. Parse nye roms i SRM, genstart Steam, så ligger de i `nfc games`.
+Vil du køre en emulator direkte (uden Steam), så bind din egen kommando med `nfc add emu`.
 
 Proton og Steam Runtime vises ikke.
 

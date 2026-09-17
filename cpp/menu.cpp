@@ -127,18 +127,29 @@ int cmd_menu() {
     } else if (line == "2") {
       cmd = "add";
     } else if (line == "3") {
-      cmd = "list";
+      cmd = "add";
+      arg = "action " + ask_line("menu_ask_action");
     } else if (line == "4") {
-      cmd = "read";
+      const std::string picked = ask_line("menu_ask_emu");
+      cmd = "add";
+      arg = picked.empty() ? "emu" : ("emu " + picked);
     } else if (line == "5") {
+      const std::string picked = ask_line("menu_ask_lutris");
+      cmd = "add";
+      arg = picked.empty() ? "lutris" : ("lutris " + picked);
+    } else if (line == "6") {
+      cmd = "list";
+    } else if (line == "7") {
+      cmd = "read";
+    } else if (line == "8") {
       cmd = "remove";
       arg = ask_line("menu_ask_remove");
-    } else if (line == "6") {
+    } else if (line == "9") {
       cmd = "write";
-    } else if (line == "7") {
+    } else if (line == "10") {
       cmd = "sprog";
       arg = ask_line("menu_ask_lang");
-    } else if (line == "8" || line == "m" || line == "mere" || line == "more") {
+    } else if (line == "11" || line == "m" || line == "mere" || line == "more") {
       if (!more_menu()) return 0;
       continue;
     } else {

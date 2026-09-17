@@ -70,9 +70,29 @@ void run_hook(bool start, const std::string& id, const std::string& name) {
   ::_exit(127);
 }
 
-// Stop the active game if it is a Steam game (only Steam kinds can be stopped
-// automatically). Non-Steam kinds are left running; the user closes them.
-void stop_active(const Tag& active) {
+// Stop the active game if it can be stopped automatically. Steam kinds are
+// stopped by appid, emu kinds by the process group started at tag-on (the pid
+// is owned by the watch process). Non-Steam kinds are left running.
+void stop_active(const Tag& active, pid_t& emu_pid) {
+  if (active.kind == "action") {
+    if (active.target_off.empty()) {
+      std::cout << t("watch_nonsteam_keep") << "  " << active.name << "\n" << std::flush;
+      return;
+    }
+    std::cout << t("watch_action_stop") << active.target_off << "\n" << std::flush;
+    launcher::run_detached(active.target_off);
+    return;
+  }
+  if (launcher::is_emu_kind(active.kind)) {
+    if (emu_pid > 0) {
+      std::cout << t("watch_emu_stop") << active.name << "\n" << std::flush;
+      launcher::stop_child(emu_pid);
+    } else {
+      std::cout << t("watch_nonsteam_keep") << "  " << active.name << "\n" << std::flush;
+    }
+    emu_pid = 0;
+    return;
+  }
   if (launcher::is_steam_kind(active.kind)) {
     SteamLibrary::stop(active.appid);
     run_hook(false, std::to_string(active.appid), active.name);
@@ -129,6 +149,7 @@ int cmd_watch() {
   std::optional<Acr122> reader;
   TagTracker tracker;
   std::optional<Tag> active;
+  pid_t active_pid = 0;
   int errors = 0;
   int drop_streak = 0;
   int hold_polls = 0;
@@ -211,13 +232,27 @@ int cmd_watch() {
       }
       show_led(Acr122::Led::Yellow);
       active.reset();
+      active_pid = 0;
       return;
     }
     unknown_logged.clear();
     std::cout << t("watch_tag_on") << hex << "  " << known->name << "\n" << std::flush;
     signal_tag_on(*reader);
     shown_led = Acr122::Led::Yellow;
-    if (launcher::is_steam_kind(known->kind)) {
+    if (known->kind == "action") {
+      // One-shot shell action on tag on (kind: action in tags.conf). It is not
+      // stopped automatically when the tag is lifted.
+      std::cout << t("watch_action_run") << known->target << "\n" << std::flush;
+      launcher::run_detached(known->target);
+      active_pid = 0;
+    } else if (launcher::is_emu_kind(known->kind)) {
+      // Emulator command on tag on (kind: emu in tags.conf). The whole process
+      // group is killed when the tag is lifted (active_pid is the session
+      // leader reported by run_detached).
+      std::cout << t("watch_start_emu") << known->target << "\n" << std::flush;
+      active_pid = launcher::run_detached(known->target);
+      run_hook(true, known->name, known->name);
+    } else if (launcher::is_steam_kind(known->kind)) {
       SteamGame game;
       game.appid = known->appid;
       game.name = known->name;
@@ -244,6 +279,7 @@ int cmd_watch() {
       launcher::launch(*known);
       run_hook(true, known->target, known->name);
     }
+    active_pid = 0;
     active = *known;
     show_led(Acr122::Led::Yellow);
   };
@@ -346,8 +382,9 @@ int cmd_watch() {
     if (ev == TagTracker::Event::On || ev == TagTracker::Event::Switch) {
       if (ev == TagTracker::Event::Switch && active) {
         std::cout << t("watch_switch_stop") << active->name << "\n" << std::flush;
-        stop_active(*active);
+        stop_active(*active, active_pid);
         active.reset();
+        active_pid = 0;
       }
       if (ev == TagTracker::Event::Switch) {
         rf_refresh();
@@ -368,9 +405,10 @@ int cmd_watch() {
       std::cout << t("watch_tag_off") << "\n" << std::flush;
       if (active) {
         std::cout << t("watch_stopping") << active->name << "\n" << std::flush;
-        stop_active(*active);
+        stop_active(*active, active_pid);
       }
       active.reset();
+      active_pid = 0;
       hold_polls = 0;
       idle_begin = clock::now();
       unknown_logged.clear();
@@ -399,7 +437,7 @@ int cmd_watch() {
 
   if (active) {
     std::cout << t("watch_stopping") << active->name << "\n" << std::flush;
-    stop_active(*active);
+    stop_active(*active, active_pid);
   }
   if (reader) led_not_listening(*reader);
   std::cout << t("watch_stopped") << "\n";

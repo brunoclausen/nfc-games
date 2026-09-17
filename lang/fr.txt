@@ -19,6 +19,12 @@ Tags et jeux :
   nfc stop [jeu|appid]        arrêter le jeu
   nfc lock                    afficher le jeu verrouillé/en cours
   nfc add <jeu|appid>         trouver le jeu, lire le tag, lier et écrire le nom
+  nfc add action '<marche> || <arrêt>' lier un tag à des actions shell (arrêt exécuté au retrait)
+  nfc start action <commande> exécuter une action shell maintenant (sans tag)
+  nfc add emu '<commande>'      lier un tag à un jeu d'émulateur (arrêté au retrait du tag)
+  nfc start emu <commande>      lancer un jeu d'émulateur maintenant (sans tag)
+  nfc lutris                  lister les jeux Lutris (wine/natif, pas Steam)
+  nfc emu                     lister les jeux d'émulateur depuis ~/Emulation/roms
   nfc write                   écrire le nom du jeu sur le tag (le téléphone n'est plus vide)
   nfc read                    lire le tag (UID + jeu + NDEF)
   nfc list                    tags enregistrés
@@ -50,12 +56,15 @@ menu_text<<<
 Jeux NFC
   1  Écouter les tags (vert = prêt)
   2  Lier un nouveau tag à un jeu
-  3  Afficher vos tags
-  4  Lire le tag sur le lecteur
-  5  Retirer un tag
-  6  Écrire le nom du jeu sur le tag (téléphone)
-  7  Langue
-  8  Plus...
+  3  Lier un nouveau tag à une action
+  4  Lier un nouveau tag à un jeu d'émulateur
+  5  Lier un nouveau tag à un jeu Lutris
+  6  Afficher vos tags
+  7  Lire le tag sur le lecteur
+  8  Retirer un tag
+  9  Écrire le nom du jeu sur le tag (téléphone)
+ 10  Langue
+ 11  Plus...
   0  Quitter
 <<<
 menu_more_text<<<
@@ -76,7 +85,10 @@ Plus
   0  retour
 <<<
 menu_prompt=Numéro : 
-menu_ask_game=jeu ou appid : 
+menu_ask_game=jeu ou appid :
+menu_ask_action=commande shell : 
+menu_ask_emu=jeu d'émulateur ou commande (vide = choisir dans la liste) : 
+menu_ask_lutris=jeu Lutris ou slug (vide = choisir dans la liste) : 
 menu_ask_game_pick=numéro de la liste, ou nom du jeu : 
 menu_ask_remove=nom du jeu (vide = tag sur le lecteur) : 
 menu_ask_restore=chemin du fichier .hex : 
@@ -190,3 +202,17 @@ start_other=lancement via
 watch_start_other=watch  lancement 
 stop_not_stoppable=nfc: ce type de jeu ne s'arrête pas automatiquement — fermez-le manuellement.
 watch_nonsteam_keep=watch  laisse tourner (pas d'arrêt automatique)
+
+# type action (commande shell liée à un tag)
+add_action_usage=nfc add action '<marche> || <arrêt>'  |  nfc start action <commande>
+start_action=exécute action 
+watch_action_run=watch  exécute action
+watch_action_stop=watch  arrête action
+
+# type emu (commande d'émulateur liée à un tag)
+add_emu_usage=nfc add emu <commande>  |  nfc start emu <commande>
+start_emu=lance émulateur 
+watch_start_emu=watch  lance émulateur 
+watch_emu_stop=watch  arrête émulateur
+no_lutris_games=nfc : aucun jeu Lutris trouvé
+no_emu_games=nfc : aucun jeu d'émulateur trouvé

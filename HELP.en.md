@@ -15,7 +15,7 @@ cmake -S . -B build && cmake --build build
 
 | Command | What it does |
 | --- | --- |
-| `nfc menu` | Short home menu (listen, bind tag, show tags). Extra tools under 8 More... |
+| `nfc menu` | Short home menu (listen, bind tag, show tags). Extra tools under 10 More... |
 | `nfc lyt` | Start listening in the background (green LED). Also starts at login. |
 | `nfc watch` | Listen in this terminal. Tag on = yellow + 2 beeps + start; tag off = 1 beep + stop + green. |
 | `nfc restart` / `nfc genstart` | Restart watch (systemd user unit, else pid) |
@@ -27,11 +27,23 @@ cmake -S . -B build && cmake --build build
 | `nfc add "Silent Hill 4"` | Find the game, wait for a tag, bind tag → game and write the name (NDEF) |
 | `nfc add 3640596865` | Same, but with appid (when several share a name) |
 | `nfc add lutris <slug> [name]` | Bind tag → Lutris game (slug e.g. `hades`); starts via `lutris://` |
+| `nfc lutris` | List non-Steam Lutris games (`lutris -l -o`); `nfc add lutris` with no slug picks from the list |
 | `nfc add heroic <app_name> [name]` | Bind tag → Heroic game (e.g. `Control`); starts via `heroic://` |
+| `nfc add action '<on> \|\| <off>'` | Bind tag → shell action (run via `sh -c` on tag on; `<off>` runs on tag off) |
+| `nfc add emu '<command>'` | Bind tag → emulator game (runs on tag on; stopped automatically on tag off) |
+| `nfc emu` | List emulator games under `~/Emulation/roms` (launcher + args from the SRM config); `nfc add emu` with no argument picks from the list |
 
 Lutris and Heroic tags can only be started — there is no automatic stop. When the
 tag is lifted the game keeps running until you close it manually. `nfc stop`, `nfc lock`
 and hook's stop only apply to Steam games.
+
+Action tags run one shell command (`<on>`) and an optional `<off>` command when the
+tag is lifted. Emu tags run the emulator command on tag on (e.g. `dolphin -e game.iso`)
+and stop the whole process group automatically on tag off.
+
+`nfc lutris` and `nfc emu` list what is already installed. For emu games the launcher
+and arguments come from Steam ROM Manager (`userConfigurations.json`), so the same
+EmuDeck/ES-DE setup is reused; override with `NFC_ROMS_DIR` / `NFC_SRM_CONFIG`.
 | `nfc write` | Write the bound game name onto the tag so a phone is not empty |
 | `nfc read` | Read tag, show UID, bound game and NDEF text |
 | `nfc list` | Show saved tags |
@@ -64,6 +76,10 @@ Format:
 ```
 # uid  kind  appid  name
 04AABBCCDD  steam  1373550  BloodRayne 2: Terminal Cut
+# uid  action  <on command> [|| <off command>]
+04AABBCCEE  action  lamp on || lamp off
+# uid  emu  <emulator command>
+04AABBCCFF  emu  dolphin -e ~/roms/MarioKartWii.iso
 ```
 
 The file is created the first time a tag is saved with `nfc add`.
@@ -97,9 +113,10 @@ shortcuts and starts them only via Steam, e.g.:
 steam steam://rungameid/15636244473128681472
 ```
 
-(the 64-bit id SRM/Steam puts in the `.desktop` file). NFC does not run the
-emulator directly. Parse new ROMs in SRM, restart Steam, then they show in
-`nfc games`.
+(the 64-bit id SRM/Steam puts in the `.desktop` file). For Steam shortcuts NFC does
+not run the emulator directly. Parse new ROMs in SRM, restart Steam, then they show in
+`nfc games`. To run an emulator directly (without Steam), bind your own command with
+`nfc add emu`.
 
 Proton and Steam Runtime are hidden.
 

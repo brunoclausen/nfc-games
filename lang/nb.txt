@@ -19,6 +19,12 @@ Brikker og spill:
   nfc stop [spill|appid]      stopp spill
   nfc lock                    vis låst/kjørende spill
   nfc add <spill|appid>       finn spill, les brikke, bind og skriv navn
+  nfc add action '<på> || <av>' bind en brikke til skalkommandoer (av kjører når brikken løftes)
+  nfc start action <kommando> kjør en skalkommando nå (ingen brikke nødvendig)
+  nfc add emu '<kommando>'      bind en brikke til et emulatorspill (stoppes når brikken løftes)
+  nfc start emu <kommando>      start et emulatorspill nå (ingen brikke nødvendig)
+  nfc lutris                  vis Lutris-spill (wine/native, ikke Steam)
+  nfc emu                     vis emulatorspill fra ~/Emulation/roms
   nfc write                   skriv spillnavn på brikken (så telefonen ikke viser tom)
   nfc read                    les brikke (UID + spill + NDEF)
   nfc list                    lagrede brikker
@@ -50,12 +56,15 @@ menu_text<<<
 NFC-spill
   1  Lytt etter brikker (grønn = klar)
   2  Bind ny brikke til et spill
-  3  Vis brikkene dine
-  4  Les brikken på leseren
-  5  Fjern en brikke
-  6  Skriv spillnavn på brikken (telefon)
-  7  Språk
-  8  Mer...
+  3  Bind ny brikke til en handling
+  4  Bind ny brikke til et emulatorspill
+  5  Bind ny brikke til et Lutris-spill
+  6  Vis brikkene dine
+  7  Les brikken på leseren
+  8  Fjern en brikke
+  9  Skriv spillnavn på brikken (telefon)
+ 10  Språk
+ 11  Mer...
   0  Avslutt
 <<<
 menu_more_text<<<
@@ -77,6 +86,9 @@ Mer
 <<<
 menu_prompt=Nummer: 
 menu_ask_game=spill eller appid: 
+menu_ask_action=skalkommando: 
+menu_ask_emu=emulatorspill eller kommando (tomt = velg fra listen): 
+menu_ask_lutris=Lutris-spill eller slug (tomt = velg fra listen): 
 menu_ask_game_pick=nummer fra listen, eller spillnavn: 
 menu_ask_remove=spillnavn (tomt = brikke på leser): 
 menu_ask_restore=sti til .hex-fil: 
@@ -190,3 +202,17 @@ start_other=starter via
 watch_start_other=watch  starter 
 stop_not_stoppable=nfc: denne spilltypen kan ikke stoppes automatisk — lukk den manuelt.
 watch_nonsteam_keep=watch  lar den kjøre (ingen automatisk stopp)
+
+# action-type (skalkommando bundet til en brikke)
+add_action_usage=nfc add action '<på> || <av>'  |  nfc start action <kommando>
+start_action=kjører handling 
+watch_action_run=watch  kjører handling
+watch_action_stop=watch  stopper handling
+
+# emu-type (emulatorkommando bundet til en brikke)
+add_emu_usage=nfc add emu <kommando>  |  nfc start emu <kommando>
+start_emu=starter emulator 
+watch_start_emu=watch  starter emulator 
+watch_emu_stop=watch  stopper emulator
+no_lutris_games=nfc: fant ingen Lutris-spill
+no_emu_games=nfc: fant ingen emulatorspill

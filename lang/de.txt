@@ -19,6 +19,12 @@ Tags und Spiele:
   nfc stop [spiel|appid]      laufendes Spiel beenden
   nfc lock                    gesperrtes/laufendes Spiel anzeigen
   nfc add <spiel|appid>       Spiel finden, Tag lesen, binden und Namen schreiben
+  nfc add action '<an> || <aus>' Tag an Shell-Aktionen binden (aus läuft beim Abheben)
+  nfc start action <Befehl>   führt jetzt ein Shell-Kommando aus (kein Tag nötig)
+  nfc add emu '<Befehl>'       Tag an ein Emulator-Spiel binden (wird beim Abheben beendet)
+  nfc start emu <Befehl>       Emulator-Spiel jetzt starten (kein Tag nötig)
+  nfc lutris                  Lutris-Spiele anzeigen (wine/nativ, nicht Steam)
+  nfc emu                     Emulator-Spiele aus ~/Emulation/roms anzeigen
   nfc write                   Spielname auf das Tag schreiben (Telefon nicht leer)
   nfc read                    Tag lesen (UID + Spiel + NDEF)
   nfc list                    gespeicherte Tags
@@ -54,12 +60,15 @@ menu_text<<<
 NFC-Spiele
   1  Auf Tags hören (grün = bereit)
   2  Neues Tag an ein Spiel binden
-  3  Deine Tags anzeigen
-  4  Tag auf dem Leser lesen
-  5  Tag entfernen
-  6  Spielname auf das Tag schreiben (Telefon)
-  7  Sprache
-  8  Mehr...
+  3  Neues Tag an eine Aktion binden
+  4  Neues Tag an ein Emulator-Spiel binden
+  5  Neues Tag an ein Lutris-Spiel binden
+  6  Deine Tags anzeigen
+  7  Tag auf dem Leser lesen
+  8  Tag entfernen
+  9  Spielname auf das Tag schreiben (Telefon)
+ 10  Sprache
+ 11  Mehr...
   0  Beenden
 <<<
 menu_more_text<<<
@@ -81,6 +90,9 @@ Mehr
 <<<
 menu_prompt=Nummer: 
 menu_ask_game=Spiel oder appid: 
+menu_ask_action=Shell-Befehl: 
+menu_ask_emu=Emulator-Spiel oder Befehl (leer = aus Liste wählen): 
+menu_ask_lutris=Lutris-Spiel oder Slug (leer = aus Liste wählen): 
 menu_ask_game_pick=Nummer aus der Liste oder Spielname: 
 menu_ask_remove=Spielname (leer = Tag auf Leser): 
 menu_ask_restore=Pfad zur .hex-Datei: 
@@ -194,3 +206,17 @@ start_other=startet über
 watch_start_other=watch  startet 
 stop_not_stoppable=nfc: diese Spielart kann nicht automatisch gestoppt werden — manuell beenden.
 watch_nonsteam_keep=watch  läuft weiter (kein automatischer Stopp)
+
+# Aktionstyp (an ein Tag gebundenes Shell-Kommando)
+add_action_usage=nfc add action '<an> || <aus>'  |  nfc start action <Befehl>
+start_action=Aktion ausführen 
+watch_action_run=watch  Aktion ausführen
+watch_action_stop=watch  Aktion stoppen
+
+# Emulator-Typ (an ein Tag gebundenes Emulator-Kommando)
+add_emu_usage=nfc add emu <Befehl>  |  nfc start emu <Befehl>
+start_emu=Emulator starten 
+watch_start_emu=watch  Emulator starten 
+watch_emu_stop=watch  Emulator stoppen
+no_lutris_games=nfc: keine Lutris-Spiele gefunden
+no_emu_games=nfc: keine Emulator-Spiele gefunden

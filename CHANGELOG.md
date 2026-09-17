@@ -22,6 +22,23 @@
 - Lutris and Heroic games: `nfc add lutris <slug>` / `nfc add heroic <app_name>`
   binds a tag to a non-Steam launcher game (starts via `lutris://`/`heroic://`,
   no automatic stop)
+- Action tags: `nfc add action '<on> || <off>'` binds a tag to shell command(s)
+  (the optional off command runs when the tag is lifted); `nfc start action
+  <command>` runs one now without a tag. Menu: "Bind a new tag to an action".
+- Emulator tags: `nfc add emu '<command>'` runs any emulator directly (e.g.
+  Dolphin, RetroArch) on tag on and stops the whole process group on tag off;
+  `nfc start emu <command>` starts one now. Menu: "Bind a new tag to an emulator
+  game". Steam ROM Manager shortcuts keep launching via Steam.
+- `nfc lutris` lists non-Steam Lutris games (`lutris -l -o`); `nfc add lutris`
+  with no slug picks from a numbered list. Menu item 5: "Bind a new tag to a
+  Lutris game".
+- `nfc emu` lists emulator games under `~/Emulation/roms`, taking launcher and
+  arguments from the Steam ROM Manager config (`userConfigurations.json`) so the
+  EmuDeck/ES-DE setup is reused; `nfc add emu` with no argument picks from the
+  list. Override with `NFC_ROMS_DIR` / `NFC_SRM_CONFIG`.
+- Emulator picker: when a system has several enabled parsers (e.g. Switch with
+  Citron/Eden/Ryujinx), the one whose launcher is actually installed now wins,
+  instead of the first in the config.
 
 ## 1.0.11
 

@@ -18,7 +18,13 @@ Tags og spil:
   nfc start                   læs tag og start bundet spil
   nfc stop [spil|appid]       stop kørende spil
   nfc lock                    vis hvilket spil der er låst/kører
-  nfc add <spil|appid>        find spil, læs tag, bind og skriv navn
+nfc add <spil|appid>      find spil, læs tag, bind og skriv navn
+  nfc add action '<på> || <af>' bind et tag til skal-handlinger (af kører når tagget løftes)
+  nfc start action <kommando>  kør en skal-handling nu (intet tag nødvendigt)
+  nfc add emu '<kommando>'      bind et tag til et emulator-spil (stoppes når tagget løftes)
+  nfc start emu <kommando>      start et emulator-spil nu (intet tag nødvendigt)
+  nfc lutris                  vis Lutris-spil (wine/native, ikke Steam)
+  nfc emu                     vis emulator-spil fra ~/Emulation/roms
   nfc write                   skriv spilnavn på tagget (så telefonen ikke viser tom)
   nfc read                    læs tag (UID + bundet spil + NDEF)
   nfc list                    vis gemte tags (tags.conf)
@@ -63,12 +69,15 @@ menu_text<<<
 NFC-spil
   1  Lyt efter tags (grøn = klar)
   2  Bind nyt tag til et spil
-  3  Vis dine tags
-  4  Læs tagget på læseren
-  5  Fjern et tag
-  6  Skriv spilnavn på tagget (telefon)
-  7  Sprog
-  8  Mere...
+  3  Bind nyt tag til en handling
+  4  Bind nyt tag til et emulator-spil
+  5  Bind nyt tag til et Lutris-spil
+  6  Vis dine tags
+  7  Læs tagget på læseren
+  8  Fjern et tag
+  9  Skriv spilnavn på tagget (telefon)
+ 10  Sprog
+ 11  Mere...
   0  Afslut
 <<<
 menu_more_text<<<
@@ -90,6 +99,9 @@ Mere
 <<<
 menu_prompt=Nummer: 
 menu_ask_game=spil eller appid: 
+menu_ask_action=skal-kommando: 
+menu_ask_emu=emulator-spil eller kommando (tomt = vælg fra listen): 
+menu_ask_lutris=lutris-spil eller slug (tomt = vælg fra listen): 
 menu_ask_game_pick=nummer fra listen, eller spilnavn: 
 menu_ask_remove=spilnavn (tomt = tag på læser): 
 menu_ask_restore=sti til .hex-fil: 
@@ -203,3 +215,17 @@ start_other=starter via
 watch_start_other=watch  starter 
 stop_not_stoppable=nfc: denne spiltype kan ikke stoppes automatisk — luk den manuelt.
 watch_nonsteam_keep=watch  lader den køre (ingen automatisk stop)
+
+# action-type (skal-kommando bundet til et tag)
+add_action_usage=nfc add action '<på> || <af>'  |  nfc start action <kommando>
+start_action=kører handling 
+watch_action_run=watch  kører handling
+watch_action_stop=watch  handling stop
+
+# emu-type (emulator-kommando bundet til et tag)
+add_emu_usage=nfc add emu <kommando>  |  nfc start emu <kommando>
+start_emu=starter emulator 
+watch_start_emu=watch  starter emulator 
+watch_emu_stop=watch  stopper emulator
+no_lutris_games=nfc: ingen Lutris-spil fundet
+no_emu_games=nfc: ingen emulator-spil fundet

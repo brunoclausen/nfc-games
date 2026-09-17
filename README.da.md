@@ -12,7 +12,9 @@ Linux-værktøj: læg et **ACR122U**-NFC-tag på læseren for at starte eller st
 English: [README.md](README.md)
 
 **Testet på:** Bazzite (Fedora) x86_64, ACR122U firmware ACR122U216. Watch kan køre længe (RF-refresh, ingen USB-reset-loop).  
-**Ikke:** Windows, macOS, andre NFC-læsere, eller spil startet uden om Steam.
+**Ikke:** Windows, macOS eller andre NFC-læsere. Spil kan komme fra Steam,
+[Lutris](https://lutris.net) eller et EmuDeck/ES-DE-agtigt `~/Emulation/roms`-træ;
+`emu`-typen kan også køre enhver emulator direkte.
 
 ## Hvorfor dette findes (sammenlignet med Zaparoo/TapTo)
 
@@ -30,6 +32,8 @@ og clones som den testede `ACR122U216` understøttes.
 - Steam kørende på samme maskine
 - ACR122U USB-læser (`072f:2200`)
 - Spil på tags skal allerede ligge i Steam (installeret eller non-Steam-genvej)
+- ...eller ligge i Lutris (`nfc lutris`) eller under `~/Emulation/roms` (`nfc emu`)
+- ...eller start enhver emulator direkte med `emu`-typen (`nfc add emu '<kommando>'`)
 - For at bygge: C++20, CMake ≥ 3.16, pkg-config, libusb-1.0 devel
 
 ## Byg og kør (C++)
@@ -47,6 +51,12 @@ ctest --test-dir build
 ./build/nfc firmware
 ./build/nfc games
 ./build/nfc add 123456
+./build/nfc add action '~/bin/party.sh on'  # bind et tag til en skal-handling (kører via sh -c når tagget lægges på)
+./build/nfc start action '~/bin/party.sh on'  # kør en handling nu (intet tag nødvendigt)
+./build/nfc add emu 'dolphin -e ~/roms/MarioKartWii.iso'  # bind et tag til et emulator-spil (stoppes på tag-af)
+./build/nfc start emu 'dolphin -e ~/roms/MarioKartWii.iso'  # start et emulator-spil nu
+./build/nfc lutris         # vis Lutris-spil (wine/native, ikke Steam)
+./build/nfc emu            # vis emulator-spil fra ~/Emulation/roms (launcher + args fra SRM)
 ./build/nfc write          # skriv spilnavn på et allerede bundet tag
 ./build/nfc watch
 ./build/nfc udev install
@@ -117,12 +127,25 @@ og som Gitea-secret. Den kommer **ikke** i git.
 
 | Fil | Formål |
 | --- | --- |
-| `~/.config/nfc-games/tags.conf` | tag-UID → Steam appid (eller lutris-slug / heroic-app_name) |
+| `~/.config/nfc-games/tags.conf` | tag-UID → Steam appid (eller lutris-slug / heroic-app_name / `action` / `emu`-skalkommando) |
 | `~/.config/nfc-games/nfc.conf` | sprog (`da`, `en`, `de`, `sv`, `nb`, `fr`) og valgfri `hook_start`/`hook_stop` |
 
 Steam-spil og ROM-genveje bliver i Steam. Programmet tager **ikke** spil eller tags med.
 
 Bind **ikke** tags til `boot-windows` eller Proton/runtime.
+
+## Lutris- og emulator-spil
+
+Begge findes ud fra det, der allerede er installeret; intet kopieres.
+
+- `nfc lutris` viser ikke-Steam-spil fra Lutris (via `lutris -l -o`). Bind ét med
+  `nfc add lutris <slug> [navn]`, eller kør `nfc add lutris` uden slug for at vælge
+  fra en nummereret liste. Lutris-spil kan startes, men ikke stoppes automatisk.
+- `nfc emu` viser emulator-spil under `~/Emulation/roms` og tager launcher og
+  argumenter fra samme Steam ROM Manager-config (`userConfigurations.json`), som
+  EmuDeck/ES-DE bruger. `nfc add emu` uden argument vælger fra listen; emulatoren
+  stoppes automatisk, når tagget løftes. Overstyr ROM-træet med `NFC_ROMS_DIR` og
+  SRM-configen med `NFC_SRM_CONFIG`.
 
 ## Hooks (valgfrit)
 

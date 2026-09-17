@@ -9,7 +9,7 @@ Denne side er til **dig derhjemme** — ikke til at kode.
 
 ## Hvad det gør
 
-Du har en **ACR122U**-læser i USB. Hvert NFC-tag er bundet til ét spil i **Steam**.
+Du har en **ACR122U**-læser i USB. Hvert NFC-tag er bundet til ét spil i **Steam** — eller til en **emulator-kommando** (se nedenfor).
 
 | Du gør | Maskinen gør | LED |
 | --- | --- | --- |
@@ -62,13 +62,16 @@ Skriv et **nummer** og Enter.
 | Nr. | Hvad |
 | --- | --- |
 | 1 | Lyt efter tags (hvis LED er rød) |
-| 2 | Bind nyt tag — vælg spil fra listen |
-| 3 | Vis dine tags |
-| 4 | Læs tagget på læseren |
-| 5 | Fjern et tag |
-| 6 | Skriv spilnavn på tagget (telefonen) |
-| 7 | Sprog |
-| 8 | Mere (teknik) |
+| 2 | Bind nyt tag — vælg spil fra listen (Steam) |
+| 3 | Bind nyt tag til en handling (skal-kommando) |
+| 4 | Bind nyt tag til et emulator-spil (vælg fra `~/Emulation/roms`) |
+| 5 | Bind nyt tag til et Lutris-spil |
+| 6 | Vis dine tags |
+| 7 | Læs tagget på læseren |
+| 8 | Fjern et tag |
+| 9 | Skriv spilnavn på tagget (telefonen) |
+| 10 | Sprog |
+| 11 | Mere (teknik) |
 | 0 | Afslut |
 
 ---
@@ -87,20 +90,56 @@ Bind **ikke** tags til `boot-windows` eller Proton/runtime-værktøjer.
 
 ---
 
+## Bind et tag til et emulator-spil (ikke Steam)
+
+Hvis du vil starte et emulator-spil **direkte** (fx Dolphin eller RetroArch), kan du
+vælge det fra listen over dine ROMs i stedet for at skrive en kommando.
+
+1. Åbn menuen.  
+2. Vælg **4**.  
+3. Tryk bare **Enter** for at vælge fra listen (eller skriv en kommando selv,
+   fx `dolphin -e ~/roms/MarioKartWii.iso`).  
+4. Skriv **nummeret** ud for spillet.  
+5. Læg det tomme tag på læseren, når den beder om det.
+
+Listen kommer fra `~/Emulation/roms`, og start-kommandoen bygges ud fra din
+Steam ROM Manager-opsætning (EmuDeck/ES-DE), så du behøver ikke skrive stier selv.
+Du kan også se listen i terminalen med `nfc emu`.
+
+Når tagget lægges på, kører spillet. Når du tager tagget **af**, lukkes emulatoren
+automatisk. Det virker kun med **ét** emulator-spil ad gangen.
+
+---
+
+## Bind et tag til et Lutris-spil (ikke Steam)
+
+Spillet skal allerede være tilføjet i **Lutris**.
+
+1. Åbn menuen.  
+2. Vælg **5**.  
+3. Tryk bare **Enter** for at vælge fra listen (eller skriv spillets slug).  
+4. Skriv **nummeret** ud for spillet.  
+5. Læg det tomme tag på læseren, når den beder om det.
+
+Du kan også se listen i terminalen med `nfc lutris`. Lutris-spil **kan startes, men
+ikke stoppes automatisk** — du lukker spillet selv, når du er færdig.
+
+---
+
 ## Telefonen viser at tagget er tomt
 
 Det er **normalt**, indtil navnet er skrevet på tagget.
 
-nfc-games starter spil ud fra taggets **UID** (gemt i `tags.conf` på PC’en). En telefon kigger efter **NDEF-tekst** på selve tagget. De tre tags du allerede har, blev kun bundet — der blev ikke skrevet tekst.
+nfc-games starter spil ud fra taggets **UID** (gemt i `tags.conf` på PC’en). En telefon kigger efter **NDEF-tekst** på selve tagget. De tags du allerede har, blev kun bundet — der blev ikke skrevet tekst.
 
 Sådan skriver du navnet på et **eksisterende** tag:
 
 1. Åbn menuen.  
-2. Vælg **19** (`nfc write`).  
+2. Vælg **9** (`nfc write`).  
 3. Læg tagget på læseren.  
 4. Scan med telefonen igen — den skal vise spilnavnet.
 
-Nye tags får navnet skrevet automatisk, når du bruger **6** (`nfc add`).
+Nye tags får navnet skrevet automatisk, når du bruger **2** (`nfc add`).
 
 Hvis skrivning fejler, virker PC’en stadig (UID). Så er tagget typisk ikke NTAG/Ultralight, eller det er låst. Fudan-kloner (UID der starter med `1D`) kan godt være Ultralight — `nfc write` skal kunne skrive dem.
 
@@ -119,9 +158,9 @@ Eller åbn menuen og vælg **1**.
 
 **Ingen reaktion på tag**  
 - Steam skal køre.  
-- Tagget skal være bundet (menu **8**).  
+- Tagget skal være bundet (menu **2**).  
 - Træk læseren ud og sæt den i igen.  
-- Firmware (menu **13**) skal ligne `ACR122U216`.
+- Firmware (Mere → **6**) skal ligne `ACR122U216`.
 
 **Skift tag**  
 Tag A af og læg B på. Watch skal skifte spil uden at gå via grøn først.
@@ -173,6 +212,6 @@ cd ~/nfc-games
 
 ## Husk
 
-- Kun Linux (Bazzite), kun ACR122U, kun Steam.  
+- Kun Linux (Bazzite), kun ACR122U; spil via Steam (også Lutris og EmuDeck/ES-DE under `~/Emulation/roms`).  
 - Ikke Windows, ikke andre læsere.  
 - Grøn = klar. Gul = spil kører. Rød = værktøjet kører ikke.

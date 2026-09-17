@@ -238,6 +238,16 @@ void demo(Acr122& r) {
 void print_tag(const std::string& uid, const TagStore& store) {
   std::cout << "uid  " << uid << "\n";
   if (auto known = store.find_uid(uid)) {
+    if (known->kind == "action") {
+      std::cout << "action  " << known->target;
+      if (!known->target_off.empty()) std::cout << " || " << known->target_off;
+      std::cout << "\n";
+      return;
+    }
+    if (known->kind == "emu") {
+      std::cout << "emu  " << known->target << "\n";
+      return;
+    }
     std::cout << t("game") << " " << known->name << "\n";
     if (known->appid || !known->target.empty()) {
       const std::string id =

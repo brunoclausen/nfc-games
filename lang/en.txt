@@ -19,6 +19,12 @@ Tags and games:
   nfc stop [game|appid]       stop running game
   nfc lock                    show which game is locked/running
   nfc add <game|appid>        find game, read tag, bind and write name
+  nfc add action '<on> || <off>' bind a tag to shell actions (off runs when the tag is lifted)
+  nfc start action <command>  run a shell action now (no tag needed)
+  nfc add emu '<command>'      bind a tag to an emulator game (stopped when the tag is lifted)
+  nfc start emu <command>      start an emulator game now (no tag needed)
+  nfc lutris                  list Lutris games (wine/native, not Steam)
+  nfc emu                     list emulator games from ~/Emulation/roms
   nfc write                   write game name onto the tag (so the phone is not empty)
   nfc read                    read tag (UID + bound game + NDEF)
   nfc list                    show saved tags (tags.conf)
@@ -63,12 +69,15 @@ menu_text<<<
 NFC games
   1  Listen for tags (green = ready)
   2  Bind a new tag to a game
-  3  Show your tags
-  4  Read the tag on the reader
-  5  Remove a tag
-  6  Write the game name onto the tag (phone)
-  7  Language
-  8  More...
+  3  Bind a new tag to an action
+  4  Bind a new tag to an emulator game
+  5  Bind a new tag to a Lutris game
+  6  Show your tags
+  7  Read the tag on the reader
+  8  Remove a tag
+  9  Write the game name onto the tag (phone)
+ 10  Language
+ 11  More...
   0  Quit
 <<<
 menu_more_text<<<
@@ -90,6 +99,9 @@ More
 <<<
 menu_prompt=Number: 
 menu_ask_game=game or appid: 
+menu_ask_action=shell command: 
+menu_ask_emu=emulator game or command (empty = choose from list): 
+menu_ask_lutris=lutris game or slug (empty = choose from list): 
 menu_ask_game_pick=number from the list, or game name: 
 menu_ask_remove=game name (empty = tag on reader): 
 menu_ask_restore=path to .hex file: 
@@ -203,3 +215,17 @@ start_other=starting via
 watch_start_other=watch  starting 
 stop_not_stoppable=nfc: this game kind has no automatic stop — close it manually.
 watch_nonsteam_keep=watch  left running (no automatic stop)
+
+# action kind (shell action bound to a tag)
+add_action_usage=nfc add action '<on> || <off>'  |  nfc start action <command>
+start_action=running action 
+watch_action_run=watch  running action
+watch_action_stop=watch  action stop
+
+# emu kind (emulator command bound to a tag)
+add_emu_usage=nfc add emu <command>  |  nfc start emu <command>
+start_emu=starting emulator 
+watch_start_emu=watch  starting emulator 
+watch_emu_stop=watch  stopping emulator
+no_lutris_games=nfc: no Lutris games found
+no_emu_games=nfc: no emulator games found

@@ -28,6 +28,10 @@ bool is_kind(const std::string& s) { return s == "steam" || s == "shortcut"; }
 
 bool is_target_kind(const std::string& s) { return s == "lutris" || s == "heroic"; }
 
+bool is_action_kind(const std::string& s) { return s == "action"; }
+
+bool is_emu_kind(const std::string& s) { return s == "emu"; }
+
 }  // namespace
 
 std::string normalize_uid(std::string_view raw) {
@@ -43,6 +47,14 @@ std::string normalize_name(std::string_view raw) {
   std::string s = trim(raw);
   if (s.empty()) throw std::runtime_error(t("empty_name"));
   return s;
+}
+
+std::pair<std::string, std::string> split_action(const std::string& raw) {
+  const auto sep = raw.find(" || ");
+  if (sep == std::string::npos) return {normalize_name(trim(raw)), {}};
+  const std::string on = trim(raw.substr(0, sep));
+  if (on.empty()) throw std::runtime_error(t("empty_name"));
+  return {on, trim(raw.substr(sep + 4))};  // trailing " ||" is allowed (off = "")
 }
 
 void migrate_legacy_tags(const std::filesystem::path& dest) {
@@ -101,6 +113,22 @@ TagStore TagStore::load(const std::filesystem::path& path) {
         std::getline(iss, name);
         t.target = target;
         t.name = normalize_name(trim(name));
+      } else if (is_action_kind(second)) {
+        // uid  action  <on command> [|| <off command>]
+        t.kind = second;
+        std::string cmd;
+        std::getline(iss, cmd);
+        const auto parts = split_action(cmd);
+        t.target = parts.first;
+        t.target_off = parts.second;
+        t.name = t.target;
+      } else if (is_emu_kind(second)) {
+        // uid  emu  <emulator command>  (the rest of the line is the command)
+        t.kind = second;
+        std::string cmd;
+        std::getline(iss, cmd);
+        t.target = normalize_name(trim(cmd));
+        t.name = t.target;
       } else {
         std::string rest;
         std::getline(iss, rest);
@@ -180,6 +208,16 @@ void TagStore::save() const {
   if (!out) throw std::runtime_error(t_join("cannot_write", path_.string()));
   out << "# uid  kind  id  name\n";
   for (const auto& tag : tags_) {
+    if (tag.kind == "action") {
+      out << tag.uid << "  action  " << tag.target;
+      if (!tag.target_off.empty()) out << " || " << tag.target_off;
+      out << "\n";
+      continue;
+    }
+    if (tag.kind == "emu") {
+      out << tag.uid << "  emu  " << tag.target << "\n";
+      continue;
+    }
     const std::string id = (tag.kind == "lutris" || tag.kind == "heroic")
                                ? tag.target
                                : std::to_string(tag.appid);

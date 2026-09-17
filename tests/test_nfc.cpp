@@ -1,6 +1,7 @@
 #include "i18n.hpp"
 #include "launch.hpp"
 #include "ndef.hpp"
+#include "roms.hpp"
 #include "steam.hpp"
 #include "tags.hpp"
 #include "watch.hpp"
@@ -210,6 +211,71 @@ int main() {
   }
 
   {
+    // action kind: shell command roundtrip in tags.conf.
+    const auto conf = tmp / "action.conf";
+    {
+      auto store = TagStore::load(conf);
+      store.upsert(Tag{"04B1B2B30010", "~/bin/party.sh on", 0, "action", "~/bin/party.sh on"});
+      store.upsert(Tag{"04B1B2B30011", "~/bin/lamp.sh on", 0, "action", "~/bin/lamp.sh on"});
+    }
+    {
+      auto store = TagStore::load(conf);
+      auto a = store.find_uid("04b1b2b30010");
+      check(a && a->kind == "action" && a->target == "~/bin/party.sh on" &&
+                a->name == "~/bin/party.sh on" && a->appid == 0,
+            "action roundtrip");
+      check(store.find("~/bin/party.sh on").has_value(), "find by action command");
+      check(store.remove("~/bin/party.sh on"), "remove by action command");
+      check(!store.find_uid("04B1B2B30010"), "action removed");
+    }
+    check(split_action("on").first == "on" && split_action("on").second.empty(),
+          "split_action plain");
+    check(split_action("lamp on || lamp off").first == "lamp on" &&
+              split_action("lamp on || lamp off").second == "lamp off",
+          "split_action on/off");
+    check(split_action("lamp on || ").first == "lamp on" &&
+              split_action("lamp on || ").second.empty(),
+          "split_action trailing separator");
+  }
+
+  {
+    // action kind with off command roundtrips with the " || " separator.
+    const auto conf = tmp / "action_off.conf";
+    {
+      auto store = TagStore::load(conf);
+      Tag t{"04B1B2B30020", "lamp on", 0, "action", "lamp on"};
+      t.target_off = "lamp off";
+      store.upsert(std::move(t));
+    }
+    {
+      auto store = TagStore::load(conf);
+      auto t = store.find_uid("04b1b2b30020");
+      check(t && t->target == "lamp on" && t->target_off == "lamp off",
+            "action off roundtrip");
+    }
+  }
+
+  {
+    // emu kind: the whole rest of the line after "emu" is the command.
+    const auto conf = tmp / "emu.conf";
+    {
+      auto store = TagStore::load(conf);
+      store.upsert(Tag{"04B1B2B30030", "dolphin -e ~/roms/MK.iso", 0, "emu",
+                       "dolphin -e ~/roms/MK.iso"});
+    }
+    {
+      auto store = TagStore::load(conf);
+      auto e = store.find_uid("04b1b2b30030");
+      check(e && e->kind == "emu" && e->target == "dolphin -e ~/roms/MK.iso" &&
+                e->name == "dolphin -e ~/roms/MK.iso" && e->appid == 0,
+            "emu roundtrip");
+      check(store.find("dolphin -e ~/roms/MK.iso").has_value(), "find by emu command");
+      check(store.remove("dolphin -e ~/roms/MK.iso"), "remove by emu command");
+      check(!store.find_uid("04B1B2B30030"), "emu removed");
+    }
+  }
+
+  {
     const Tag steam{"AA", "Half-Life 2", 220, "steam", ""};
     check(launcher::uri(steam) == "steam://rungameid/220", "steam tag URI");
     check(launcher::target_id(steam) == "220", "steam target id");
@@ -221,7 +287,61 @@ int main() {
     check(launcher::target_id(lut) == "hades", "lutris target id");
     const Tag her{"AA", "Control", 0, "heroic", "Control"};
     check(launcher::uri(her) == "heroic://launch/Control", "heroic tag URI");
+    const Tag emu{"AA", "dolphin -e mk.elf", 0, "emu", "dolphin -e mk.elf"};
+    check(launcher::is_emu_kind("emu") && launcher::uri(emu) == "dolphin -e mk.elf",
+          "emu tag URI is its command");
     check(launcher::is_steam_kind("lutris") == false, "lutris is not a Steam kind");
+    check(launcher::is_steam_kind("action") == false, "action is not a Steam kind");
+    check(launcher::is_steam_kind("emu") == false, "emu is not a Steam kind");
+  }
+
+  {
+    const auto exts = glob_extensions("**/${title}@(.RVZ|.rvz|.iso|.ISO|.chd)");
+    check(exts.size() == 3 && exts[0] == ".rvz" && exts[1] == ".iso" && exts[2] == ".chd",
+          "glob extensions dedupe and lowercase");
+
+    check(build_emu_command("/e/dolphin.sh", "-b -e \"${filePath}\"", "/r/My Game.rvz") ==
+              "/e/dolphin.sh -b -e \"/r/My Game.rvz\"",
+          "emu command fills filePath");
+    check(build_emu_command("/e/pcsx2.sh", "vblank_mode=0 %command% -fullscreen \"${filePath}\"",
+                            "/r/g.iso") == "/e/pcsx2.sh -fullscreen \"/r/g.iso\"",
+          "emu command strips %command% and vblank");
+    check(build_emu_command("/e/retroarch.sh", "-L ${racores}/snes.so \"${filePath}\"",
+                            "/r/g.sfc") == "/e/retroarch.sh '/r/g.sfc'",
+          "emu command falls back on unknown vars");
+
+    const std::string js = R"json([
+      {"configTitle":"Sony PlayStation 2 - PCSX2","romDirectory":"${romsdirglobal}/ps2",
+       "disabled":false,"executableArgs":"-fullscreen \"${filePath}\"",
+       "parserInputs":{"glob":"**/${title}@(.iso|.chd)"},
+       "executable":{"path":"/e/pcsx2.sh"}}
+    ])json";
+    const auto parsers = parse_srm_config(js, "/roms");
+    check(parsers.size() == 1 && parsers[0].rom_dir == "/roms/ps2" &&
+              parsers[0].launcher == "/e/pcsx2.sh" && parsers[0].exts.size() == 2,
+          "srm parser parse and romsdir expansion");
+
+    const auto root = tmp / "emulib";
+    fs::create_directories(root / "data" / "roms" / "gc");
+    {
+      std::ofstream(root / "data" / "roms" / "gc" / "My Game.nkit.rvz") << "x";
+      std::ofstream(root / "data" / "roms" / "gc" / "notes.txt") << "x";
+      std::ofstream(root / "data" / "srm.json")
+          << R"json([{"configTitle":"GameCube - Dolphin","romDirectory":"${romsdirglobal}/gc",)"
+             R"json("disabled":false,"executableArgs":"-b -e \"${filePath}\"",)"
+             R"json("parserInputs":{"glob":"**/${title}@(.rvz|.nkit)"},)"
+             R"json("executable":{"path":"/e/dolphin.sh"}}])json";
+    }
+    ::setenv("NFC_SRM_CONFIG", (root / "data" / "srm.json").c_str(), 1);
+    ::setenv("NFC_ROMS_DIR", (root / "data" / "roms").c_str(), 1);
+    const auto lib = EmuLibrary::scan();
+    check(lib.games().size() == 1, "emu scan finds one rom");
+    check(!lib.games().empty() && lib.games()[0].system == "gc" &&
+              lib.games()[0].name == "My Game" &&
+              lib.games()[0].command == "/e/dolphin.sh -b -e \"" + lib.games()[0].path + "\"",
+          "emu scan strips .nkit and builds command");
+    ::unsetenv("NFC_SRM_CONFIG");
+    ::unsetenv("NFC_ROMS_DIR");
   }
 
   ::setenv("XDG_CONFIG_HOME", tmp.c_str(), 1);
