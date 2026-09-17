@@ -279,7 +279,9 @@ int cmd_watch() {
       launcher::launch(*known);
       run_hook(true, known->target, known->name);
     }
-    active_pid = 0;
+    // Keep the emu pid so stop_active() can kill the process group on tag-off;
+    // the other kinds are stopped by appid or not at all.
+    if (!launcher::is_emu_kind(known->kind)) active_pid = 0;
     active = *known;
     show_led(Acr122::Led::Yellow);
   };

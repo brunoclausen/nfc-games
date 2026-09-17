@@ -293,13 +293,21 @@ std::string build_emu_command(const std::string& launcher, const std::string& ar
     std::string rest = a;
     erase_all(rest, "${filePath}");
     if (rest.find("${") == std::string::npos && rest.find('%') == std::string::npos) {
-      std::string filled = a;
-      std::size_t pos = 0;
       const std::string needle = "${filePath}";
-      while ((pos = filled.find(needle, pos)) != std::string::npos) {
-        const std::string sub = dquote_escape(file_path);
-        filled.replace(pos, needle.size(), sub);
-        pos += sub.size();
+      std::string filled;
+      filled.reserve(a.size() + file_path.size());
+      bool in_dq = false;
+      for (std::size_t i = 0; i < a.size();) {
+        if (a.compare(i, needle.size(), needle) == 0) {
+          // Inside "..." the path is escaped for that context (the surrounding
+          // quotes are kept); bare, it is single-quoted so spaces survive.
+          filled += in_dq ? dquote_escape(file_path) : shell_single_quote(file_path);
+          i += needle.size();
+          continue;
+        }
+        if (a[i] == '"') in_dq = !in_dq;
+        filled.push_back(a[i]);
+        ++i;
       }
       return exe + " " + filled;
     }

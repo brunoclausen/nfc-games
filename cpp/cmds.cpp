@@ -83,40 +83,40 @@ int cmd_start(const std::string& query) {
   } else {
     const auto sp = query.find(' ');
     const std::string first = sp == std::string::npos ? query : query.substr(0, sp);
+    const std::string rest0 =
+        sp == std::string::npos ? std::string{} : trim_arg(query.substr(sp + 1));
     if (first == "lutris" || first == "heroic") {
-      const std::string rest = trim_arg(query.substr(sp + 1));
-      if (rest.empty()) {
+      if (rest0.empty()) {
         std::cerr << t("add_kind_usage") << "\n";
         return 2;
       }
       tag.kind = first;
-      const auto sp2 = rest.find(' ');
+      const auto sp2 = rest0.find(' ');
       if (sp2 == std::string::npos) {
-        tag.target = rest;
-        tag.name = rest;
+        tag.target = rest0;
+        tag.name = rest0;
       } else {
-        tag.target = rest.substr(0, sp2);
-        tag.name = trim_arg(rest.substr(sp2 + 1));
+        tag.target = rest0.substr(0, sp2);
+        tag.name = trim_arg(rest0.substr(sp2 + 1));
       }
     } else if (first == "action") {
-      const std::string rest = trim_arg(query.substr(sp + 1));
-      if (rest.empty()) {
+      if (rest0.empty()) {
         std::cerr << t("add_action_usage") << "\n";
         return 2;
       }
-      const auto parts = split_action(rest);
+      const auto parts = split_action(rest0);
       tag.kind = first;
       tag.target = parts.first;
+      tag.target_off = parts.second;
       tag.name = parts.first;
     } else if (first == "emu") {
-      const std::string rest = trim_arg(query.substr(sp + 1));
-      if (rest.empty()) {
+      if (rest0.empty()) {
         std::cerr << t("add_emu_usage") << "\n";
         return 2;
       }
       tag.kind = first;
-      tag.target = rest;
-      tag.name = rest;
+      tag.target = rest0;
+      tag.name = rest0;
     } else {
       SteamGame game;
       int rc = resolve_game(query, game);

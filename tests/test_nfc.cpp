@@ -309,6 +309,9 @@ int main() {
     check(build_emu_command("/e/retroarch.sh", "-L ${racores}/snes.so \"${filePath}\"",
                             "/r/g.sfc") == "/e/retroarch.sh '/r/g.sfc'",
           "emu command falls back on unknown vars");
+    check(build_emu_command("/e/dolphin.sh", "-b -e ${filePath}", "/r/My Game.rvz") ==
+              "/e/dolphin.sh -b -e '/r/My Game.rvz'",
+          "emu command quotes a bare filePath");
 
     const std::string js = R"json([
       {"configTitle":"Sony PlayStation 2 - PCSX2","romDirectory":"${romsdirglobal}/ps2",
