@@ -72,27 +72,37 @@ Mer
   1  vis Steam-spill
   2  start spill
   3  stopp spill
-  4  vis spill som kjører
-  5  test LED og pip
+  4  vis kjørende spill
+  5  test LED og bipp
   6  vis leser-firmware
   7  installer udev-regel
-  8  sikkerhetskopi av brikke
-  9  gjenopprett brikke
+  8  backup av tag
+  9  gendan tag
  10  hjelp
  11  versjon
- 12  start lytting på nytt
- 13  lytt i denne terminalen
+ 12  genstart lyt
+ 13  lyt i denne terminalen
+ 14  skann spill (steam/emu/lutris/all)
+ 15  installer Lutris-spill
+ 16  skann GOG-spill
+ 17  installer GOG-spill
+ 18  skann emu ROMs
   0  tilbake
 <<<
 menu_prompt=Nummer: 
 menu_ask_game=spill eller appid: 
-menu_ask_action=skalkommando: 
+menu_ask_action=skalkommando (f.eks. 'echo hei > /tmp/test.txt'; kjøres via sh -c når taggen legges på; legg til ' || av-kommando' for løft): 
 menu_ask_emu=emulatorspill eller kommando (tomt = velg fra listen): 
 menu_ask_lutris=Lutris-spill eller slug (tomt = velg fra listen): 
+menu_ask_lutris_install=Lutris-spill å installere (slug eller navn): 
+menu_ask_gog_install=GOG-spill å installere (slug eller navn): 
 menu_ask_game_pick=nummer fra listen, eller spillnavn: 
 menu_ask_remove=spillnavn (tomt = brikke på leser): 
 menu_ask_restore=sti til .hex-fil: 
+emu_pick_system=Velg system (nummer eller navn, tomt = tilbake): 
+emu_pick_game=Velg spill (nummer eller navn, tomt = tilbake til system): 
 menu_ask_led=LED (green/red/yellow/off): 
+menu_ask_scan=hva skal skannes (steam/emu/lutris/all, tomt = all): 
 menu_ask_lang=språk (kode, tomt = vis): 
 menu_need_game=nfc: velg et nummer eller skriv et spillnavn
 menu_fail=nfc: handlingen feilet
@@ -216,3 +226,12 @@ watch_start_emu=watch  starter emulator
 watch_emu_stop=watch  stopper emulator
 no_lutris_games=nfc: fant ingen Lutris-spill
 no_emu_games=nfc: fant ingen emulatorspill
+scan_usage=bruk: nfc scan [steam|emu|lutris|all]
+lutris_install_usage=bruk: nfc lutris-install <slug eller navn>
+lutris_not_found=nfc: Lutris-spill ikke funnet:
+lutris_not_available=nfc: Lutris ikke tilgjengelig
+lutris_installing=installerer 
+lutris_install_ok=installert: 
+lutris_install_failed=nfc: installasjon feilet
+lutris_already_installed=allerede installert:
+no_gog_games=nfc: fant ingen GOG-spill

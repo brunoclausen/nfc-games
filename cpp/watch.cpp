@@ -11,6 +11,7 @@
 #include <iostream>
 #include <optional>
 #include <thread>
+#include <sys/wait.h>
 #include <unistd.h>
 
 using namespace std::chrono_literals;
@@ -57,17 +58,27 @@ std::string hook_command(bool start) {
 
 // Run a configured hook as a detached `sh -c` with $1=id, $2=game name.
 // id is the Steam appid for Steam kinds and the slug/app_name otherwise.
+// Double-fork so the grandchild is reparented to init and never becomes a zombie.
 void run_hook(bool start, const std::string& id, const std::string& name) {
   const std::string cmd = hook_command(start);
   if (cmd.empty()) return;
   std::cout << (start ? "hook start " : "hook stop ") << id << "  " << name << "\n"
             << std::flush;
-  const pid_t pid = ::fork();
-  if (pid != 0) return;
-  ::setsid();
-  ::execl("/bin/sh", "sh", "-c", cmd.c_str(), "nfc", id.c_str(), name.c_str(),
-          static_cast<char*>(nullptr));
-  ::_exit(127);
+  const pid_t a = ::fork();
+  if (a < 0) return;
+  if (a == 0) {
+    // intermediate child: fork once more and exit immediately so parent can reap
+    const pid_t b = ::fork();
+    if (b < 0) ::_exit(1);
+    if (b > 0) ::_exit(0);  // parent reaps this child right away
+    // grandchild (orphaned → reparented to init)
+    ::setsid();
+    ::execl("/bin/sh", "sh", "-c", cmd.c_str(), "nfc", id.c_str(), name.c_str(),
+            static_cast<char*>(nullptr));
+    ::_exit(127);
+  }
+  // parent: reap the intermediate child so it does not linger
+  ::waitpid(a, nullptr, 0);
 }
 
 // Stop the active game if it can be stopped automatically. Steam kinds are

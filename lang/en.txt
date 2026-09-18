@@ -95,17 +95,27 @@ More
  11  version
  12  restart listener
  13  listen in this terminal
+ 14  scan games (steam/emu/lutris/all)
+ 15  install Lutris game
+ 16  scan GOG games
+ 17  install GOG game
+ 18  scan emu ROMs
   0  back
 <<<
 menu_prompt=Number: 
 menu_ask_game=game or appid: 
-menu_ask_action=shell command: 
+menu_ask_action=shell command (e.g. 'echo hi > /tmp/test.txt'; runs via sh -c on tag on; add ' || off-command' for tag off): 
 menu_ask_emu=emulator game or command (empty = choose from list): 
 menu_ask_lutris=lutris game or slug (empty = choose from list): 
+menu_ask_lutris_install=lutris game to install (slug or name): 
+menu_ask_gog_install=gog game to install (slug or name): 
 menu_ask_game_pick=number from the list, or game name: 
 menu_ask_remove=game name (empty = tag on reader): 
 menu_ask_restore=path to .hex file: 
+emu_pick_system=Pick system (number or name, empty = back): 
+emu_pick_game=Pick game (number or name, empty = back to system): 
 menu_ask_led=LED (green/red/yellow/off): 
+menu_ask_scan=hvad skal scannes (steam/emu/lutris/all, tomt = all): 
 menu_ask_lang=language (code, empty = list): 
 menu_need_game=nfc: pick a number or type a game name
 menu_fail=nfc: action failed
@@ -229,3 +239,12 @@ watch_start_emu=watch  starting emulator
 watch_emu_stop=watch  stopping emulator
 no_lutris_games=nfc: no Lutris games found
 no_emu_games=nfc: no emulator games found
+scan_usage=usage: nfc scan [steam|emu|lutris|all]
+lutris_install_usage=usage: nfc lutris-install <slug or name>
+lutris_not_found=nfc: Lutris game not found:
+lutris_not_available=nfc: Lutris not available
+lutris_installing=installing 
+lutris_install_ok=installed: 
+lutris_install_failed=nfc: installation failed
+lutris_already_installed=already installed:
+no_gog_games=nfc: no GOG games found

@@ -171,12 +171,17 @@ void TagStore::upsert(Tag tag) {
   tag.uid = normalize_uid(tag.uid);
   tag.name = normalize_name(tag.name);
   if (tag.uid.size() < 8) throw std::runtime_error(t("uid_short"));
+  // Remove old tags identified by uid, appid, or kind+target.  We no longer
+  // match on lowercased name alone, because that would silently wipe any
+  // unrelated physical tag that happens to share the same display name.
   tags_.erase(std::remove_if(tags_.begin(), tags_.end(),
                              [&](const Tag& t) {
-                               return t.uid == tag.uid || lower(t.name) == lower(tag.name) ||
-                                      (tag.appid != 0 && t.appid == tag.appid) ||
-                                      (!tag.target.empty() && t.kind == tag.kind &&
-                                       t.target == tag.target);
+                               if (t.uid == tag.uid) return true;
+                               if (tag.appid != 0 && t.appid == tag.appid) return true;
+                               if (!tag.target.empty() && t.kind == tag.kind &&
+                                   t.target == tag.target)
+                                 return true;
+                               return false;
                              }),
               tags_.end());
   tags_.push_back(std::move(tag));
@@ -189,9 +194,13 @@ bool TagStore::remove(const std::string& name_or_uid) {
   const std::string key_uid = normalize_uid(name_or_uid);
   tags_.erase(std::remove_if(tags_.begin(), tags_.end(),
                              [&](const Tag& t) {
-                               return lower(t.name) == key_name || t.uid == key_uid ||
-                                      std::to_string(t.appid) == key_name ||
-                                      lower(t.target) == key_name;
+                               if (lower(t.name) == key_name) return true;
+                               if (t.uid == key_uid) return true;
+                               if (!key_name.empty() && key_name != "0" &&
+                                   std::to_string(t.appid) == key_name)
+                                 return true;
+                               if (!key_name.empty() && lower(t.target) == key_name) return true;
+                               return false;
                              }),
               tags_.end());
   if (tags_.size() == before) return false;

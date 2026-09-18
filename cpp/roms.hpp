@@ -29,7 +29,7 @@ std::vector<std::string> glob_extensions(const std::string& glob);
 // ${filePath}, and the ROM path. Falls back to just the quoted ROM path when
 // the template uses variables we cannot resolve.
 std::string build_emu_command(const std::string& launcher, const std::string& args,
-                              const std::string& file_path);
+                              const std::string& file_path, const std::string& racores = "");
 
 // Parses `userConfigurations.json`; ${romsdirglobal} and ${/} are expanded.
 std::vector<SrmParser> parse_srm_config(const std::string& json, const std::string& roms_dir);

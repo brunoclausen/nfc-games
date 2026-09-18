@@ -148,15 +148,31 @@ int run_udev_install(const std::filesystem::path& helper, const std::filesystem:
 
 std::filesystem::path watch_pid_path() { return nfc_config_dir() / "watch.pid"; }
 
+namespace {
+bool usb_pause_remove_if_pid(int pid) {
+  std::ifstream in(usb_pause_path());
+  if (!in) return false;
+  int cur = 0;
+  in >> cur;
+  if (cur != pid) return false;
+  std::error_code ec;
+  std::filesystem::remove(usb_pause_path(), ec);
+  return true;
+}
+}  // namespace
+
 bool usb_pause_requested() {
   std::ifstream in(usb_pause_path());
   if (!in) return false;
   int pid = 0;
   in >> pid;
-  if (pid <= 0) return true;
+  if (pid <= 0) {
+    // Malformed/stale pause file: clear it instead of parking the watcher.
+    usb_pause_remove_if_pid(pid);
+    return false;
+  }
   if (::kill(pid, 0) != 0 && errno == ESRCH) {
-    std::error_code ec;
-    std::filesystem::remove(usb_pause_path(), ec);
+    usb_pause_remove_if_pid(pid);
     return false;
   }
   return true;
@@ -170,8 +186,8 @@ UsbPause::UsbPause() {
 }
 
 UsbPause::~UsbPause() {
-  std::error_code ec;
-  std::filesystem::remove(usb_pause_path(), ec);
+  // Only remove the file we wrote, so we never clobber a newer pauser.
+  usb_pause_remove_if_pid(::getpid());
 }
 
 Acr122 open_reader() {

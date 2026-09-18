@@ -65,6 +65,7 @@ std::vector<LutrisGame> parse_lutris_list(const std::string& text) {
     g.name = trim(cols[1]);
     g.slug = trim(cols[2]);
     g.runner = trim(cols[3]);
+    g.install_path = cols.size() >= 5 ? trim(cols[4]) : "";
     if (g.name.empty() || g.slug.empty()) continue;
     if (g.runner == "steam") continue;  // those live in the Steam list
     games.push_back(std::move(g));
@@ -74,13 +75,36 @@ std::vector<LutrisGame> parse_lutris_list(const std::string& text) {
   return games;
 }
 
+std::vector<LutrisGame> parse_lutris_service_list(const std::string& text) {
+  std::vector<LutrisGame> games;
+  std::istringstream in(text);
+  std::string line;
+  while (std::getline(in, line)) {
+    if (line.find('|') == std::string::npos) continue;
+    const auto cols = split_pipe(line);
+    if (cols.size() < 4) continue;
+    LutrisGame g;
+    g.name = trim(cols[1]);
+    g.slug = trim(cols[2]);
+    g.runner = trim(cols[3]);
+    g.install_path = cols.size() >= 5 ? trim(cols[4]) : "";
+    if (g.name.empty() || g.slug.empty()) continue;
+    games.push_back(std::move(g));
+  }
+  std::sort(games.begin(), games.end(),
+            [](const LutrisGame& a, const LutrisGame& b) { return a.name < b.name; });
+  return games;
+}
+
 bool LutrisLibrary::available() { return !find_lutris_binary().empty(); }
+
+std::string LutrisLibrary::find_binary() { return find_lutris_binary(); }
 
 LutrisLibrary LutrisLibrary::scan() {
   LutrisLibrary lib;
   const std::string bin = find_lutris_binary();
   if (bin.empty()) return lib;
-  const std::string cmd = "\"" + bin + "\" -l -o 2>/dev/null";
+  const std::string cmd = "\"" + bin + "\" -l 2>/dev/null";
   FILE* f = ::popen(cmd.c_str(), "r");
   if (!f) return lib;
   std::string out;
@@ -89,6 +113,22 @@ LutrisLibrary LutrisLibrary::scan() {
   while ((n = std::fread(buf.data(), 1, buf.size(), f)) > 0) out.append(buf.data(), n);
   ::pclose(f);
   lib.games_ = parse_lutris_list(out);
+  return lib;
+}
+
+LutrisLibrary LutrisLibrary::scan_gog() {
+  LutrisLibrary lib;
+  const std::string bin = find_lutris_binary();
+  if (bin.empty()) return lib;
+  const std::string cmd = "\"" + bin + "\" --list-service-games gog 2>/dev/null";
+  FILE* f = ::popen(cmd.c_str(), "r");
+  if (!f) return lib;
+  std::string out;
+  std::array<char, 4096> buf{};
+  std::size_t n = 0;
+  while ((n = std::fread(buf.data(), 1, buf.size(), f)) > 0) out.append(buf.data(), n);
+  ::pclose(f);
+  lib.games_ = parse_lutris_service_list(out);
   return lib;
 }
 

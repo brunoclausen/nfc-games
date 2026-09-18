@@ -69,30 +69,40 @@ Jeux NFC
 <<<
 menu_more_text<<<
 Plus
-  1  lister les jeux Steam
-  2  lancer un jeu
-  3  arrêter le jeu
-  4  afficher le jeu en cours
+  1  lister jeux Steam
+  2  démarrer jeu
+  3  arrêter jeu
+  4  afficher jeu en cours
   5  tester LED et bip
-  6  afficher le firmware du lecteur
-  7  installer la règle udev
-  8  sauvegarder le tag
-  9  restaurer le tag
+  6  afficher firmware lecteur
+  7  installer règle udev
+  8  sauvegarder tag
+  9  restaurer tag
  10  aide
  11  version
- 12  redémarrer l'écoute
+ 12  redémarrer écoute
  13  écouter dans ce terminal
+ 14  scanner jeux (steam/emu/lutris/all)
+ 15  installer jeu Lutris
+ 16  scanner jeux GOG
+ 17  installer jeu GOG
+ 18  scanner ROMs emu
   0  retour
 <<<
 menu_prompt=Numéro : 
 menu_ask_game=jeu ou appid :
-menu_ask_action=commande shell : 
+menu_ask_action=commande shell (ex. 'echo salut > /tmp/test.txt'; exécutée via sh -c à la pose ; ajouter ' || commande de retrait' pour le retrait): 
 menu_ask_emu=jeu d'émulateur ou commande (vide = choisir dans la liste) : 
 menu_ask_lutris=jeu Lutris ou slug (vide = choisir dans la liste) : 
+menu_ask_lutris_install=jeu Lutris à installer (slug ou nom) : 
+menu_ask_gog_install=jeu GOG à installer (slug ou nom) : 
 menu_ask_game_pick=numéro de la liste, ou nom du jeu : 
 menu_ask_remove=nom du jeu (vide = tag sur le lecteur) : 
 menu_ask_restore=chemin du fichier .hex : 
+emu_pick_system=Choisir le système (numéro ou nom, vide = retour) : 
+emu_pick_game=Choisir le jeu (numéro ou nom, vide = retour au système) : 
 menu_ask_led=LED (green/red/yellow/off) : 
+menu_ask_scan=que scanner (steam/emu/lutris/all, vide = all) : 
 menu_ask_lang=langue (code, vide = liste) : 
 menu_need_game=nfc : choisissez un numéro ou tapez un nom de jeu
 menu_fail=nfc : l'action a échoué
@@ -216,3 +226,12 @@ watch_start_emu=watch  lance émulateur
 watch_emu_stop=watch  arrête émulateur
 no_lutris_games=nfc : aucun jeu Lutris trouvé
 no_emu_games=nfc : aucun jeu d'émulateur trouvé
+scan_usage=utilisation : nfc scan [steam|emu|lutris|all]
+lutris_install_usage=utilisation : nfc lutris-install <slug ou nom>
+lutris_not_found=nfc : jeu Lutris non trouvé :
+lutris_not_available=nfc : Lutris non disponible
+lutris_installing=installation de 
+lutris_install_ok=installé : 
+lutris_install_failed=nfc : installation échouée
+lutris_already_installed=déjà installé :
+no_gog_games=nfc : aucun jeu GOG trouvé

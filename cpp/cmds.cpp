@@ -16,6 +16,7 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <map>
 #include <sys/wait.h>
 #include <thread>
 #include <unistd.h>
@@ -47,6 +48,16 @@ std::string trim_arg(std::string s) {
 std::string lower_ascii(std::string s) {
   for (char& c : s) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
   return s;
+}
+
+std::string shell_single_quote(const std::string& s) {
+  std::string out = "'";
+  for (char c : s) {
+    if (c == '\'') out += "'\\''";
+    else out.push_back(c);
+  }
+  out.push_back('\'');
+  return out;
 }
 
 }  // namespace
@@ -251,10 +262,115 @@ int cmd_lutris() {
     return 0;
   }
   for (const auto& g : lib.games()) {
-    std::cout << g.slug << "  " << g.runner << "  " << g.name << "\n";
+    std::cout << g.slug << "  " << g.runner << "  " << g.name << (g.installed() ? "" : "  [ikke installeret]") << "\n";
   }
   std::cout << lib.games().size() << t("games_count_suffix") << "\n";
   return 0;
+}
+
+int cmd_lutris_install(const std::string& arg) {
+  if (arg.empty()) {
+    std::cerr << t("lutris_install_usage") << "\n";
+    return 2;
+  }
+  auto lib = LutrisLibrary::scan();
+  auto it = std::find_if(lib.games().begin(), lib.games().end(),
+    [&](const LutrisGame& g) { return g.slug == arg || g.name == arg; });
+  LutrisGame found_game;
+  bool found = false;
+  if (it != lib.games().end()) {
+    found_game = *it;
+    found = true;
+  } else {
+    // Also check GOG service database
+    auto gog_lib = LutrisLibrary::scan_gog();
+    auto gog_it = std::find_if(gog_lib.games().begin(), gog_lib.games().end(),
+      [&](const LutrisGame& g) { return g.slug == arg || g.name == arg; });
+    if (gog_it != gog_lib.games().end()) {
+      found_game = *gog_it;
+      found = true;
+    }
+  }
+  if (!found) {
+    std::cerr << t("lutris_not_found") << arg << "\n";
+    return 1;
+  }
+  const LutrisGame& g = found_game;
+  if (g.installed()) {
+    std::cout << t("lutris_already_installed") << g.name << "\n";
+    return 0;
+  }
+  const std::string bin = LutrisLibrary::find_binary();
+  if (bin.empty()) {
+    std::cerr << t("lutris_not_available") << "\n";
+    return 1;
+  }
+  std::cout << t("lutris_installing") << g.name << " (" << g.slug << ")...\n";
+  std::string cmd = "\"" + bin + "\" lutris:install/" + shell_single_quote(g.slug) + " 2>&1";
+  FILE* f = ::popen(cmd.c_str(), "r");
+  if (!f) {
+    std::cerr << t("lutris_install_failed") << "\n";
+    return 1;
+  }
+
+  const char* spinner = "|/-\\";
+  int spin_idx = 0;
+  std::string buffer;
+  int last_pct = -1;
+
+  auto flush_spinner = [&](int pct) {
+    if (pct >= 0) {
+      std::cout << "\r  [" << std::setw(3) << pct << "%] " << spinner[spin_idx % 4] << " " << g.name << "    " << std::flush;
+    } else {
+      std::cout << "\r  " << spinner[spin_idx % 4] << " " << g.name << "    " << std::flush;
+    }
+    spin_idx++;
+  };
+
+  std::array<char, 4096> buf{};
+  std::size_t n = 0;
+  auto last_update = std::chrono::steady_clock::now();
+  auto handle_line = [&](const std::string& line) {
+    int pct = -1;
+    size_t pct_pos = line.find('%');
+    if (pct_pos != std::string::npos) {
+      size_t start = pct_pos;
+      while (start > 0 && std::isdigit(static_cast<unsigned char>(line[start - 1]))) start--;
+      const std::string num_str = line.substr(start, pct_pos - start);
+      try { pct = std::stoi(num_str); } catch (...) {}
+    }
+    auto now = std::chrono::steady_clock::now();
+    if (std::chrono::duration_cast<std::chrono::milliseconds>(now - last_update).count() > 100) {
+      flush_spinner(pct);
+      if (pct >= 0) last_pct = pct;
+      last_update = now;
+    }
+  };
+
+  while ((n = std::fread(buf.data(), 1, buf.size(), f)) > 0) {
+    buffer.append(buf.data(), n);
+    // Lutris/wget overwrites the progress line with \r; split on both.
+    while (true) {
+      const size_t ln = buffer.find('\n');
+      const size_t cr = buffer.find('\r');
+      if (ln == std::string::npos && cr == std::string::npos) break;
+      const size_t sep = (cr != std::string::npos && (ln == std::string::npos || cr < ln)) ? cr : ln;
+      handle_line(buffer.substr(0, sep));
+      buffer.erase(0, sep + 1);
+      if (sep == cr && buffer.size() && buffer[0] == '\n') buffer.erase(0, 1);
+    }
+  }
+  if (!buffer.empty()) handle_line(buffer);
+  flush_spinner(last_pct >= 0 ? last_pct : 100);
+  std::cout << "\n";
+
+  int rc = ::pclose(f);
+  if (rc == 0) {
+    std::cout << t("lutris_install_ok") << g.name << "\n";
+  } else {
+    std::cerr << t("lutris_install_failed") << "\n";
+  }
+  return rc == 0 ? 0 : 1;
 }
 
 int cmd_emu() {
@@ -268,6 +384,97 @@ int cmd_emu() {
   }
   std::cout << lib.games().size() << t("games_count_suffix") << "\n";
   return 0;
+}
+
+int cmd_scan(const std::string& arg) {
+  std::string what = arg.empty() ? "all" : arg;
+  if (what == "steam" || what == "spil" || what == "games") {
+    auto lib = SteamLibrary::cached_scan();
+    int n = 0;
+    for (const auto& g : lib.games()) {
+      if (g.appid == 0) continue;
+      ++n;
+      std::cout << g.appid << "  " << g.name << "\n";
+    }
+    std::cout << n << t("games_count_suffix") << "\n";
+    return 0;
+  }
+  if (what == "emu" || what == "roms" || what == "emu-spil") {
+    return cmd_emu();
+  }
+  if (what == "lutris" || what == "lutris-spil") {
+    auto lib = LutrisLibrary::scan();
+    if (lib.games().empty()) {
+      std::cout << t("no_lutris_games") << "\n";
+      return 0;
+    }
+    for (const auto& g : lib.games()) {
+      std::cout << g.slug << "  " << g.name << "  [" << g.runner << "]\n";
+    }
+    std::cout << lib.games().size() << t("games_count_suffix") << "\n";
+    return 0;
+  }
+  if (what == "gog") {
+    auto lib = LutrisLibrary::scan_gog();
+    if (lib.games().empty()) {
+      std::cout << t("no_gog_games") << "\n";
+      return 0;
+    }
+    for (const auto& g : lib.games()) {
+      std::cout << g.slug << "  " << g.name << "  [" << g.runner << "]" << (g.installed() ? "" : "  [ikke installeret]") << "\n";
+    }
+    std::cout << lib.games().size() << t("games_count_suffix") << "\n";
+    return 0;
+  }
+  if (what == "all" || what == "alle" || what == "everything") {
+    std::cout << "=== Steam ===\n";
+    auto slib = SteamLibrary::cached_scan();
+    int n = 0;
+    for (const auto& g : slib.games()) {
+      if (g.appid == 0) continue;
+      ++n;
+      std::cout << g.appid << "  " << g.name << "\n";
+    }
+    std::cout << n << t("games_count_suffix") << "\n\n";
+
+    std::cout << "=== Emu ===\n";
+    auto elib = EmuLibrary::scan();
+    if (elib.games().empty()) {
+      std::cout << t("no_emu_games") << "\n";
+    } else {
+      for (const auto& g : elib.games()) {
+        std::cout << g.system << "  " << g.name << "  " << g.command << "\n";
+      }
+      std::cout << elib.games().size() << t("games_count_suffix") << "\n";
+    }
+    std::cout << "\n";
+
+    std::cout << "=== Lutris ===\n";
+    auto llib = LutrisLibrary::scan();
+    if (llib.games().empty()) {
+      std::cout << t("no_lutris_games") << "\n";
+    } else {
+      for (const auto& g : llib.games()) {
+        std::cout << g.slug << "  " << g.name << "  [" << g.runner << "]\n";
+      }
+      std::cout << llib.games().size() << t("games_count_suffix") << "\n";
+    }
+    std::cout << "\n";
+
+    std::cout << "=== GOG ===\n";
+    auto glib = LutrisLibrary::scan_gog();
+    if (glib.games().empty()) {
+      std::cout << t("no_gog_games") << "\n";
+    } else {
+      for (const auto& g : glib.games()) {
+        std::cout << g.slug << "  " << g.name << "  [" << g.runner << "]" << (g.installed() ? "" : "  [ikke installeret]") << "\n";
+      }
+      std::cout << glib.games().size() << t("games_count_suffix") << "\n";
+    }
+    return 0;
+  }
+  std::cerr << t("scan_usage") << "\n";
+  return 2;
 }
 
 int cmd_list() {
@@ -567,36 +774,80 @@ std::string pick_emu_query() {
     std::cerr << t("no_emu_games") << "\n";
     return {};
   }
-  int n = 0;
+
+  std::map<std::string, std::vector<const EmuGame*>> by_system;
   for (const auto& g : shown) {
-    ++n;
-    std::cout << "  " << n << "  [" << g.system << "] " << g.name << "\n";
+    by_system[g.system].push_back(&g);
   }
-  std::cout << t("menu_ask_game_pick") << std::flush;
-  std::string line;
-  if (!std::getline(std::cin, line)) return {};
-  while (!line.empty() && std::isspace(static_cast<unsigned char>(line.front()))) line.erase(line.begin());
-  while (!line.empty() && std::isspace(static_cast<unsigned char>(line.back()))) line.pop_back();
-  if (line.empty()) return {};
-  char* end = nullptr;
-  const long v = std::strtol(line.c_str(), &end, 10);
-  const EmuGame* pick = nullptr;
-  if (end != line.c_str() && end && *end == '\0' && v >= 1 &&
-      v <= static_cast<long>(shown.size())) {
-    pick = &shown[static_cast<std::size_t>(v) - 1];
-  } else {
-    const std::string needle = lower_ascii(line);
-    for (const auto& g : shown) {
-      if (lower_ascii(g.name) == needle) { pick = &g; break; }
+
+  while (true) {
+    std::cout << t("emu_pick_system") << "\n";
+    int sys_n = 0;
+    std::vector<std::string> systems;
+    for (const auto& [sys, games] : by_system) {
+      ++sys_n;
+      systems.push_back(sys);
+      std::cout << "  " << sys_n << "  [" << sys << "] " << games.size() << " spil\n";
     }
-    if (!pick) {
-      for (const auto& g : shown) {
-        if (lower_ascii(g.name).find(needle) != std::string::npos) { pick = &g; break; }
+    std::cout << t("menu_ask_game_pick") << std::flush;
+    std::string line;
+    if (!std::getline(std::cin, line)) return {};
+    while (!line.empty() && std::isspace(static_cast<unsigned char>(line.front()))) line.erase(line.begin());
+    while (!line.empty() && std::isspace(static_cast<unsigned char>(line.back()))) line.pop_back();
+    if (line.empty()) return {};
+
+    char* end = nullptr;
+    const long v = std::strtol(line.c_str(), &end, 10);
+    const std::string* picked_system = nullptr;
+    if (end != line.c_str() && end && *end == '\0' && v >= 1 &&
+        v <= static_cast<long>(systems.size())) {
+      picked_system = &systems[static_cast<std::size_t>(v) - 1];
+    } else {
+      const std::string needle = lower_ascii(line);
+      for (const auto& sys : systems) {
+        if (lower_ascii(sys) == needle) { picked_system = &sys; break; }
+      }
+      if (!picked_system) {
+        for (const auto& sys : systems) {
+          if (lower_ascii(sys).find(needle) != std::string::npos) { picked_system = &sys; break; }
+        }
       }
     }
+    if (!picked_system) continue;
+
+    const auto& games = by_system[*picked_system];
+    while (true) {
+      std::cout << "[" << *picked_system << "] " << t("emu_pick_game") << "\n";
+      int n = 0;
+      for (const auto* g : games) {
+        ++n;
+        std::cout << "  " << n << "  " << g->name << "\n";
+      }
+      std::cout << t("menu_ask_game_pick") << std::flush;
+      if (!std::getline(std::cin, line)) return {};
+      while (!line.empty() && std::isspace(static_cast<unsigned char>(line.front()))) line.erase(line.begin());
+      while (!line.empty() && std::isspace(static_cast<unsigned char>(line.back()))) line.pop_back();
+      if (line.empty()) break;
+
+      const long v2 = std::strtol(line.c_str(), &end, 10);
+      const EmuGame* pick = nullptr;
+      if (end != line.c_str() && end && *end == '\0' && v2 >= 1 &&
+          v2 <= static_cast<long>(games.size())) {
+        pick = games[static_cast<std::size_t>(v2) - 1];
+      } else {
+        const std::string needle2 = lower_ascii(line);
+        for (const auto* g : games) {
+          if (lower_ascii(g->name) == needle2) { pick = g; break; }
+        }
+        if (!pick) {
+          for (const auto* g : games) {
+            if (lower_ascii(g->name).find(needle2) != std::string::npos) { pick = g; break; }
+          }
+        }
+      }
+      if (pick) return pick->name + "\t" + pick->command;
+    }
   }
-  if (pick) return pick->name + "\t" + pick->command;
-  return line;
 }
 
 }  // namespace
@@ -908,6 +1159,78 @@ int wait_new_watch_pid(int old, int ms) {
 
 }  // namespace
 
+std::string pick_lutris_install_query() {
+  auto lib = LutrisLibrary::scan();
+  const auto& shown = lib.games();
+  if (shown.empty()) {
+    std::cerr << t("no_lutris_games") << "\n";
+    return {};
+  }
+  int n = 0;
+  for (const auto& g : shown) {
+    ++n;
+    std::cout << "  " << n << "  " << g.name;
+    if (!g.runner.empty()) std::cout << "  [" << g.runner << "]";
+    if (!g.installed()) std::cout << "  [ikke installeret]";
+    std::cout << "\n";
+  }
+  std::cout << t("menu_ask_game_pick") << std::flush;
+  std::string line;
+  if (!std::getline(std::cin, line)) return {};
+  while (!line.empty() && std::isspace(static_cast<unsigned char>(line.front()))) line.erase(line.begin());
+  while (!line.empty() && std::isspace(static_cast<unsigned char>(line.back()))) line.pop_back();
+  if (line.empty()) return {};
+  std::string lower = line;
+  std::transform(lower.begin(), lower.end(), lower.begin(),
+                 [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+  if (lower == "0" || lower == "q" || lower == "tilbage" || lower == "back") return {};
+  char* end = nullptr;
+  const long v = std::strtol(line.c_str(), &end, 10);
+  if (end != line.c_str() && end && *end == '\0' && v >= 1 &&
+      v <= static_cast<long>(shown.size())) {
+    const auto& g = shown[static_cast<std::size_t>(v) - 1];
+    return g.slug;
+  }
+  if (auto g = lib.find(line)) return g->slug;
+  return line;
+}
+
+std::string pick_gog_install_query() {
+  auto lib = LutrisLibrary::scan_gog();
+  const auto& shown = lib.games();
+  if (shown.empty()) {
+    std::cerr << t("no_gog_games") << "\n";
+    return {};
+  }
+  int n = 0;
+  for (const auto& g : shown) {
+    ++n;
+    std::cout << "  " << n << "  " << g.name;
+    if (!g.runner.empty()) std::cout << "  [" << g.runner << "]";
+    if (!g.installed()) std::cout << "  [ikke installeret]";
+    std::cout << "\n";
+  }
+  std::cout << t("menu_ask_game_pick") << std::flush;
+  std::string line;
+  if (!std::getline(std::cin, line)) return {};
+  while (!line.empty() && std::isspace(static_cast<unsigned char>(line.front()))) line.erase(line.begin());
+  while (!line.empty() && std::isspace(static_cast<unsigned char>(line.back()))) line.pop_back();
+  if (line.empty()) return {};
+  std::string lower = line;
+  std::transform(lower.begin(), lower.end(), lower.begin(),
+                 [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+  if (lower == "0" || lower == "q" || lower == "tilbage" || lower == "back") return {};
+  char* end = nullptr;
+  const long v = std::strtol(line.c_str(), &end, 10);
+  if (end != line.c_str() && end && *end == '\0' && v >= 1 &&
+      v <= static_cast<long>(shown.size())) {
+    const auto& g = shown[static_cast<std::size_t>(v) - 1];
+    return g.slug;
+  }
+  if (auto g = lib.find(line)) return g->slug;
+  return line;
+}
+
 int cmd_start_watch() {
   if (const int pid = live_watch_pid()) {
     std::cout << t("watch_running") << pid << ")\n";
@@ -1009,7 +1332,9 @@ int nfc_run(const std::string& cmd, const std::string& arg) {
   if (cmd == "list" || cmd == "ls") return cmd_list();
   if (cmd == "games" || cmd == "spil" || cmd == "steam") return cmd_games();
   if (cmd == "lutris" || cmd == "lutris-spil") return cmd_lutris();
+  if (cmd == "lutris-install" || cmd == "lutris-installer") return cmd_lutris_install(arg);
   if (cmd == "emu" || cmd == "emu-spil" || cmd == "roms") return cmd_emu();
+  if (cmd == "scan") return cmd_scan(arg);
   if (cmd == "restart" || cmd == "genstart") return cmd_restart();
   if (cmd == "startwatch" || cmd == "lyt") return cmd_start_watch();
   if (cmd == "watch" || cmd == "run") {
@@ -1037,15 +1362,21 @@ int nfc_run(const std::string& cmd, const std::string& arg) {
   if (cmd == "udev") return cmd_udev(arg);
   if (cmd == "install" || cmd == "installer") return cmd_udev("install");
 
+  const bool uses_reader = cmd == "firmware" || cmd == "led" || cmd == "beep" ||
+                           cmd == "demo" || cmd == "colors" || cmd == "farver";
+  if (!uses_reader) {
+    usage();
+    return 2;
+  }
+  if (cmd == "led" && arg.empty()) {
+    usage();
+    return 2;
+  }
   UsbPause pause;
   auto reader = open_reader();
   if (cmd == "firmware") {
     std::cout << reader.firmware() << "\n";
   } else if (cmd == "led") {
-    if (arg.empty()) {
-      usage();
-      return 2;
-    }
     reader.set_led(parse_led(arg));
   } else if (cmd == "beep") {
     int ms = 200;
@@ -1054,9 +1385,6 @@ int nfc_run(const std::string& cmd, const std::string& arg) {
     reader.beep(std::chrono::milliseconds{ms});
   } else if (cmd == "demo" || cmd == "colors" || cmd == "farver") {
     demo(reader);
-  } else {
-    usage();
-    return 2;
   }
   if (cmd != "led") led_not_listening(reader);
   return 0;

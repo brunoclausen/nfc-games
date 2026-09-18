@@ -1,5 +1,27 @@
 # Changelog
 
+## 1.0.13
+
+- Menu: "Emulator games" and "Lutris games" bind a tag directly (no extra prompt)
+- Emulator picker: pick the system first, then the game
+- Amiga (and other EmuDeck/RetroArch parsers): `${os:...}`, `${racores}` and
+  `${/}` macros are now resolved, so games launch with the correct core
+  (`retroarch.sh -L …/cores/puae_libretro.so '<rom>'`). Unknown macros are
+  dropped instead of throwing away the whole command line.
+- `~/.config/steam-rom-manager`: "Amiga - RetroArch PUAE" parser enabled;
+  added "Amiga - FS-UAE" parser and a `fs-uae.sh` launcher
+- Fix: emulator scan could busy-loop when a directory disappeared mid-scan
+- Fix: a malformed `usb.pause` file or a dead pauser no longer parks the
+  watcher forever; the file is removed and the watcher resumes
+- Fix: hook commands run as a detached double-fork, so they never leave zombies
+- Fix: `nfc lutris-install` quotes the slug; progress lines that overwrite with
+  `\r` are shown live instead of sticking in a buffer
+- Fix: `nfc led` without a colour and unknown commands fail with usage before
+  the reader is touched
+- Fix: writing a tag no longer wipes a different physical tag that happens to
+  share the same display name; `nfc remove 0` no longer removes every non-Steam
+  tag
+
 ## 1.0.12
 
 - Home menu: listen, bind tag, show/read/remove tags, write name, language

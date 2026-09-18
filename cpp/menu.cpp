@@ -97,6 +97,42 @@ bool more_menu() {
         cmd = "watch";
         block = true;
       }
+    } else if (line == "14") {
+      const std::string what = ask_line("menu_ask_scan");
+      cmd = "scan";
+      arg = what.empty() ? "all" : what;
+    } else if (line == "15") {
+      const std::string what = ask_line("menu_ask_lutris_install");
+      if (what.empty()) {
+        cmd = "lutris-install";
+        arg = pick_lutris_install_query();
+        if (arg.empty()) {
+          pause_menu();
+          continue;
+        }
+      } else {
+        cmd = "lutris-install";
+        arg = what;
+      }
+    } else if (line == "16") {
+      cmd = "scan";
+      arg = "gog";
+    } else if (line == "17") {
+      const std::string what = ask_line("menu_ask_gog_install");
+      if (what.empty()) {
+        cmd = "lutris-install";
+        arg = pick_gog_install_query();
+        if (arg.empty()) {
+          pause_menu();
+          continue;
+        }
+      } else {
+        cmd = "lutris-install";
+        arg = what;
+      }
+    } else if (line == "18") {
+      cmd = "scan";
+      arg = "emu";
     } else {
       cmd = line;
     }
@@ -130,13 +166,11 @@ int cmd_menu() {
       cmd = "add";
       arg = "action " + ask_line("menu_ask_action");
     } else if (line == "4") {
-      const std::string picked = ask_line("menu_ask_emu");
-      cmd = "add";
-      arg = picked.empty() ? "emu" : ("emu " + picked);
+      run_cmd("add", "emu", false);
+      continue;
     } else if (line == "5") {
-      const std::string picked = ask_line("menu_ask_lutris");
-      cmd = "add";
-      arg = picked.empty() ? "lutris" : ("lutris " + picked);
+      run_cmd("add", "lutris", false);
+      continue;
     } else if (line == "6") {
       cmd = "list";
     } else if (line == "7") {

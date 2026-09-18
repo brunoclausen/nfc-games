@@ -95,17 +95,27 @@ Mere
  11  version
  12  genstart lyt
  13  lyt i denne terminal
+ 14  scan spil (steam/emu/lutris/all)
+ 15  installer Lutris-spil
+ 16  scan GOG-spil
+ 17  installer GOG-spil
+ 18  scan emu ROMs
   0  tilbage
 <<<
 menu_prompt=Nummer: 
 menu_ask_game=spil eller appid: 
-menu_ask_action=skal-kommando: 
+menu_ask_action=skal-kommando (fx 'echo hej > /tmp/test.txt'; kører via sh -c når tag lægges på; tilføj ' || af-kommando' for tag-løft): 
 menu_ask_emu=emulator-spil eller kommando (tomt = vælg fra listen): 
 menu_ask_lutris=lutris-spil eller slug (tomt = vælg fra listen): 
+menu_ask_lutris_install=lutris-spil at installere (slug eller navn): 
+menu_ask_gog_install=gog-spil at installere (slug eller navn): 
 menu_ask_game_pick=nummer fra listen, eller spilnavn: 
 menu_ask_remove=spilnavn (tomt = tag på læser): 
 menu_ask_restore=sti til .hex-fil: 
+emu_pick_system=Vælg system (nummer eller navn, tomt = tilbage): 
+emu_pick_game=Vælg spil (nummer eller navn, tomt = tilbage til system): 
 menu_ask_led=LED (green/red/yellow/off): 
+menu_ask_scan=hvad skal scannes (steam/emu/lutris/all, tomt = all): 
 menu_ask_lang=sprog (kode, tomt = vis): 
 menu_need_game=nfc: vælg et nummer eller skriv et spilnavn
 menu_fail=nfc: handlingen fejlede
@@ -229,3 +239,12 @@ watch_start_emu=watch  starter emulator
 watch_emu_stop=watch  stopper emulator
 no_lutris_games=nfc: ingen Lutris-spil fundet
 no_emu_games=nfc: ingen emulator-spil fundet
+scan_usage=brug: nfc scan [steam|emu|lutris|all]
+lutris_install_usage=brug: nfc lutris-install <slug eller navn>
+lutris_not_found=nfc: Lutris-spil ikke fundet: 
+lutris_not_available=nfc: Lutris ikke tilgængelig
+lutris_installing=installerer 
+lutris_install_ok=installeret: 
+lutris_install_failed=nfc: installation fejlede
+lutris_already_installed=allerede installeret:
+no_gog_games=nfc: ingen GOG-spil fundet

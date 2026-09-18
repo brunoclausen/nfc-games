@@ -68,8 +68,13 @@ OUT="$DIST/nfc-games-${ARCH}.AppImage"
 TMP_OUT="$DIST/.nfc-games-${ARCH}.AppImage.build"
 rm -f "$TMP_OUT"
 export LDAI_OUTPUT="$TMP_OUT"
-# Keep glibc/libstdc++ on the host; bundle libusb.
+# Keep glibc/libstdc++ on the host; bundle libusb (only existing paths).
 export LINUXDEPLOY_OUTPUT_APP_NAME="nfc-games"
+
+LIBUSB_LIBS=()
+for p in /usr/lib64/libusb-1.0.so.0 /usr/lib/x86_64-linux-gnu/libusb-1.0.so.0; do
+  [[ -e "$p" ]] && LIBUSB_LIBS+=(--library "$p")
+done
 
 cd "$DIST"
 "$TOOLS/linuxdeploy-${ARCH}.AppImage" \
@@ -77,8 +82,7 @@ cd "$DIST"
   --executable "$APPDIR/usr/bin/nfc" \
   --desktop-file "$APPDIR/nfc-games.desktop" \
   --icon-file "$APPDIR/nfc-games.png" \
-  --library /usr/lib64/libusb-1.0.so.0 \
-  --library /usr/lib/x86_64-linux-gnu/libusb-1.0.so.0 \
+  "${LIBUSB_LIBS[@]}" \
   --custom-apprun "$ROOT/packaging/AppRun" \
   --output appimage
 

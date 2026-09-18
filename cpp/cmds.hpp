@@ -17,3 +17,6 @@ int cmd_lang(const std::string& want);
 int cmd_restart();
 int cmd_start_watch();
 int live_watch_pid();
+
+std::string pick_lutris_install_query();
+std::string pick_gog_install_query();

@@ -201,6 +201,132 @@ void erase_all(std::string& s, const std::string& needle) {
   while ((p = s.find(needle, p)) != std::string::npos) s.erase(p, needle.size());
 }
 
+const char* emu_os_name() {
+#if defined(__APPLE__)
+  return "mac";
+#elif defined(_WIN32)
+  return "win";
+#else
+  return "linux";
+#endif
+}
+
+std::string default_cores_dir() {
+  std::error_code ec;
+  if (const char* home = std::getenv("HOME"); home && *home) {
+    const std::string flatpak =
+        std::string(home) + "/.var/app/org.libretro.RetroArch/config/retroarch/cores";
+    if (fs::is_directory(flatpak, ec)) return flatpak;
+  }
+  const std::string cfg = config_home();
+  if (!cfg.empty()) {
+    const std::string ra = cfg + "/retroarch/cores";
+    if (fs::is_directory(ra, ec)) return ra;
+  }
+  return {};
+}
+
+std::vector<std::string> split_macro_levels(const std::string& s, char sep) {
+  std::vector<std::string> out;
+  std::string cur;
+  std::size_t depth = 0;
+  for (std::size_t i = 0; i < s.size(); ++i) {
+    if (s[i] == '$' && i + 1 < s.size() && s[i + 1] == '{') {
+      ++depth;
+      cur += s[i];
+      cur += s[i + 1];
+      ++i;
+      continue;
+    }
+    if (s[i] == '}') {
+      if (depth) --depth;
+      cur += s[i];
+      continue;
+    }
+    if (s[i] == sep && depth == 0) {
+      out.push_back(cur);
+      cur.clear();
+      continue;
+    }
+    cur += s[i];
+  }
+  out.push_back(cur);
+  return out;
+}
+
+std::string expand_emu_macros(const std::string& s, const std::string& exec,
+                              const std::string& racores) {
+  std::string out;
+  std::size_t i = 0;
+  while (i < s.size()) {
+    const std::size_t open = s.find("${", i);
+    if (open == std::string::npos) {
+      out += s.substr(i);
+      break;
+    }
+    out += s.substr(i, open - i);
+    std::size_t depth = 1;
+    std::size_t j = open + 2;
+    for (; j < s.size() && depth; ++j) {
+      if (s[j] == '$' && j + 1 < s.size() && s[j + 1] == '{') {
+        ++depth;
+        ++j;
+      } else if (s[j] == '}') {
+        --depth;
+      }
+    }
+    const std::string inner = s.substr(open + 2, j - open - 3);
+    const std::size_t colon = inner.find(':');
+    const std::string name = colon == std::string::npos ? inner : inner.substr(0, colon);
+    const std::string rest = colon == std::string::npos ? "" : inner.substr(colon + 1);
+    if (name == "filePath") {
+      // Substituted per-game further down.
+      out += "${filePath}";
+    } else if (name == "os") {
+      const std::vector<std::string> parts = split_macro_levels(rest, '|');
+      const bool hit = !parts.empty() && parts[0] == emu_os_name();
+      const std::string chosen = hit ? (parts.size() > 1 ? parts[1] : "")
+                                     : (parts.size() > 2 ? parts[2] : "");
+      out += expand_emu_macros(chosen, exec, racores);
+    } else if (name == "/") {
+      out += "/";
+    } else if (name == "racores") {
+      out += racores;
+    } else if (name == "exepath" || name == "exe") {
+      out += exec;
+    } else {
+      // Unknown macro -> drop the token entirely.
+    }
+    i = j;
+  }
+  return out;
+}
+
+std::string remove_leftover_macros(const std::string& s) {
+  std::string out;
+  std::size_t i = 0;
+  while (i < s.size()) {
+    const std::size_t open = s.find("${", i);
+    if (open == std::string::npos) {
+      out += s.substr(i);
+      break;
+    }
+    out += s.substr(i, open - i);
+    std::size_t depth = 1;
+    std::size_t j = open + 2;
+    for (; j < s.size() && depth; ++j) {
+      if (s[j] == '$' && j + 1 < s.size() && s[j + 1] == '{') {
+        ++depth;
+        ++j;
+      } else if (s[j] == '}') {
+        --depth;
+      }
+    }
+    i = j;
+  }
+  return out;
+}
+
 std::string srm_config_path() {
   if (const char* e = std::getenv("NFC_SRM_CONFIG"); e && *e) return e;
   const std::string cfg = config_home();
@@ -239,7 +365,9 @@ std::map<std::string, std::string> config_vars(const std::string& roms_dir) {
     const std::string text = read_file(settings);
     if (auto v = json_string(text, "retroarchPath"); v && !v->empty()) vars["retroarchpath"] = *v;
     if (auto v = json_string(text, "steamDirectory"); v && !v->empty()) vars["steamdirglobal"] = *v;
+    if (auto v = json_string(text, "raCoresDirectory"); v && !v->empty()) vars["racores"] = *v;
   }
+  if (vars.find("racores") == vars.end()) vars["racores"] = default_cores_dir();
   return vars;
 }
 
@@ -282,16 +410,18 @@ std::vector<std::string> glob_extensions(const std::string& glob) {
 }
 
 std::string build_emu_command(const std::string& launcher, const std::string& args,
-                              const std::string& file_path) {
+                              const std::string& file_path, const std::string& racores) {
   std::string a = args;
   erase_all(a, "%command%");
   erase_all(a, "vblank_mode=0");
+  a = expand_emu_macros(trim(a), launcher, racores);
   a = trim(a);
   const std::string exe =
       launcher.find_first_of(" \t\"'") == std::string::npos ? launcher : shell_single_quote(launcher);
   if (a.find("${filePath}") != std::string::npos) {
     std::string rest = a;
     erase_all(rest, "${filePath}");
+    rest = remove_leftover_macros(rest);
     if (rest.find("${") == std::string::npos && rest.find('%') == std::string::npos) {
       const std::string needle = "${filePath}";
       std::string filled;
@@ -312,6 +442,7 @@ std::string build_emu_command(const std::string& launcher, const std::string& ar
       return exe + " " + filled;
     }
   }
+  if (!a.empty()) return exe + " " + remove_leftover_macros(a);
   return exe + " " + shell_single_quote(file_path);
 }
 
@@ -367,31 +498,38 @@ EmuLibrary EmuLibrary::scan() {
     if (p.disabled || p.exts.empty()) continue;
     if (p.launcher.find("${") != std::string::npos) continue;
     if (!fs::is_directory(p.rom_dir, ec)) continue;
-    for (fs::recursive_directory_iterator it(p.rom_dir, fs::directory_options::skip_permission_denied, ec);
-         it != fs::recursive_directory_iterator(); it.increment(ec)) {
-      if (ec) {
-        ec.clear();
+    fs::recursive_directory_iterator it(p.rom_dir, fs::directory_options::skip_permission_denied, ec);
+    while (!ec && it != fs::recursive_directory_iterator()) {
+      std::error_code fec;
+      if (!it->is_regular_file(fec)) {
+        it.increment(ec);
         continue;
       }
-      if (!it->is_regular_file(ec)) continue;
       const fs::path path = it->path();
-      if (!has_ext(p.exts, lower(path.extension().string()))) continue;
+      if (!has_ext(p.exts, lower(path.extension().string()))) {
+        it.increment(ec);
+        continue;
+      }
       const std::string full = path.string();
-      if (!seen.insert(full).second) continue;
+      if (!seen.insert(full).second) {
+        it.increment(ec);
+        continue;
+      }
       EmuGame g;
       g.title = p.title;
       const fs::path rel = fs::relative(path, roms_dir, ec);
-      if (!ec && !rel.empty()) {
-        g.system = rel.begin()->string();
-      } else {
+      if (rel.empty() || ec) {
+        ec.clear();
         g.system = path.parent_path().filename().string();
+      } else {
+        g.system = rel.begin()->string();
       }
       g.name = strip_dup_ext(path.stem().string());
       g.path = full;
-      g.command = build_emu_command(p.launcher, p.args, full);
+      g.command = build_emu_command(p.launcher, p.args, full, vars.at("racores"));
       const std::string key = lower(g.system) + "|" + lower(g.name);
-      if (!seen.insert(key).second) continue;
-      lib.games_.push_back(std::move(g));
+      if (seen.insert(key).second) lib.games_.push_back(std::move(g));
+      it.increment(ec);
     }
   }
   std::sort(lib.games_.begin(), lib.games_.end(), [](const EmuGame& a, const EmuGame& b) {

@@ -256,7 +256,41 @@ int main() {
   }
 
   {
-    // emu kind: the whole rest of the line after "emu" is the command.
+    // Same display name on a different physical tag must not be wiped by upsert.
+    const auto conf = tmp / "collision.conf";
+    {
+      auto store = TagStore::load(conf);
+      store.upsert(Tag{"04B1B2B30040", "Doom", 0, "action", "~/bin/a.sh"});
+      store.upsert(Tag{"04B1B2B30041", "Doom", 0, "action", "~/bin/b.sh"});
+    }
+    {
+      auto store = TagStore::load(conf);
+      check(store.all().size() == 2, "upsert keeps distinct same-name tags");
+      check(store.find_uid("04b1b2b30040").has_value() &&
+                store.find_uid("04b1b2b30041").has_value(),
+            "upsert keeps both same-name uids");
+      // Same kind+target still replaces the old physical tag bound to it.
+      store.upsert(Tag{"04B1B2B30042", "Doom", 0, "action", "~/bin/a.sh"});
+      check(store.all().size() == 2 && !store.find_uid("04b1b2b30040").has_value() &&
+                store.find_uid("04b1b2b30041").has_value(),
+            "upsert replaces old tag bound to the same target");
+    }
+  }
+
+  {
+    const auto conf = tmp / "remove_zero.conf";
+    {
+      auto store = TagStore::load(conf);
+      store.upsert(Tag{"04B1B2B30050", "Doom", 0, "lutris", "doom1"});
+    }
+    {
+      auto store = TagStore::load(conf);
+      check(!store.remove("0"), "remove 0 does not match appid-0 tags");
+      check(store.all().size() == 1, "appid-0 tags survive remove 0");
+    }
+  }
+
+  {
     const auto conf = tmp / "emu.conf";
     {
       auto store = TagStore::load(conf);
@@ -306,9 +340,15 @@ int main() {
     check(build_emu_command("/e/pcsx2.sh", "vblank_mode=0 %command% -fullscreen \"${filePath}\"",
                             "/r/g.iso") == "/e/pcsx2.sh -fullscreen \"/r/g.iso\"",
           "emu command strips %command% and vblank");
-    check(build_emu_command("/e/retroarch.sh", "-L ${racores}/snes.so \"${filePath}\"",
-                            "/r/g.sfc") == "/e/retroarch.sh '/r/g.sfc'",
-          "emu command falls back on unknown vars");
+    check(build_emu_command("/e/retroarch.sh", "-L ${racores}/snes.so \"${filePath}\"", "/r/g.sfc",
+                            "/cores") == "/e/retroarch.sh -L /cores/snes.so \"/r/g.sfc\"",
+          "emu command resolves racores");
+    const std::string amiga =
+        "-L ${os:win|cores|${os:mac|${racores}|${os:linux|${racores}}}}${/}puae_libretro."
+        "${os:win|dll|${os:mac|dylib|${os:linux|so}}} \"${filePath}\"";
+    check(build_emu_command("/e/retroarch.sh", amiga, "/r/Game.lha", "/cores") ==
+              "/e/retroarch.sh -L /cores/puae_libretro.so \"/r/Game.lha\"",
+          "emu command resolves nested os macros");
     check(build_emu_command("/e/dolphin.sh", "-b -e ${filePath}", "/r/My Game.rvz") ==
               "/e/dolphin.sh -b -e '/r/My Game.rvz'",
           "emu command quotes a bare filePath");
