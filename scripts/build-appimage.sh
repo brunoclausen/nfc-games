@@ -32,6 +32,11 @@ fi
 if [[ -d /home/linuxbrew/.linuxbrew/lib/pkgconfig ]]; then
   export PKG_CONFIG_PATH="/home/linuxbrew/.linuxbrew/lib/pkgconfig:${PKG_CONFIG_PATH:-}"
 fi
+# Drop a CMakeCache left over from another source dir (fx /src i containeren),
+# ellers holder cmake på forkerte stier næste gang.
+if [[ -f "$BUILD/CMakeCache.txt" ]] && ! grep -q "^CMAKE_HOME_DIRECTORY:INTERNAL=$ROOT$" "$BUILD/CMakeCache.txt"; then
+  rm -rf "$BUILD"
+fi
 cmake -S "$ROOT" -B "$BUILD" \
   -DCMAKE_BUILD_TYPE=Release \
   -DNFC_APPIMAGE=ON

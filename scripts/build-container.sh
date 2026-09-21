@@ -27,7 +27,7 @@ exec "$ENGINE" run --rm --network=host -v "$ROOT:/src:Z" -w /src "$IMAGE" bash -
 set -euo pipefail
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -qq >/dev/null 2>&1
-apt-get install -y -qq cmake g++ make pkg-config libusb-1.0-0-dev file >/dev/null 2>&1
+apt-get install -y -qq cmake g++ make pkg-config libusb-1.0-0-dev file curl ca-certificates >/dev/null 2>&1
 # Ubuntu ships the real libusb in multiarch dir; reproduce the /usr/lib64
 # layout used by build-appimage.sh (relative symlink + real file).
 mkdir -p /usr/lib64
