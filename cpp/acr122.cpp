@@ -78,7 +78,14 @@ Acr122 Acr122::open() {
   if (rc != 0) {
     libusb_close(handle);
     libusb_exit(ctx);
-    throw Acr122Error(t_join("claim_fail", usb_err(rc)) + t("claim_hint"));
+    throw Acr122Error(t_join("claim_fail", usb_err(rc)) +
+                      t(
+#ifdef _WIN32
+                          "claim_hint_win"
+#else
+                          "claim_hint"
+#endif
+                          ));
   }
 
   libusb_device* dev = libusb_get_device(handle);

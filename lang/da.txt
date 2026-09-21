@@ -102,9 +102,32 @@ Mere
  18  scan emu ROMs
   0  tilbage
 <<<
+menu_more_text_win<<<
+Mere
+  1  vis Steam-spil
+  2  start spil
+  3  stop spil
+  4  vis kørende spil
+  5  test LED og bip
+  6  vis læser-firmware
+  7  WinUSB-driver (Zadig)
+  8  backup af tag
+  9  gendan tag
+ 10  hjælp
+ 11  version
+ 12  genstart lyt
+ 13  lyt i denne terminal
+ 14  scan spil (steam/emu/lutris/all)
+ 15  installer Lutris-spil
+ 16  scan GOG-spil
+ 17  installer GOG-spil
+ 18  scan emu ROMs
+  0  tilbage
+<<<
 menu_prompt=Nummer: 
 menu_ask_game=spil eller appid: 
 menu_ask_action=skal-kommando (fx 'echo hej > /tmp/test.txt'; kører via sh -c når tag lægges på; tilføj ' || af-kommando' for tag-løft): 
+menu_ask_action_win=kommando (kører via cmd /c når tag lægges på; tilføj ' || af-kommando' for tag-løft): 
 menu_ask_emu=emulator-spil eller kommando (tomt = vælg fra listen): 
 menu_ask_lutris=lutris-spil eller slug (tomt = vælg fra listen): 
 menu_ask_lutris_install=lutris-spil at installere (slug eller navn): 
@@ -181,6 +204,26 @@ lang_saved=gemt i
 no_reader=Ingen ACR122U fundet (USB 072f:2200). Er læseren sat i?
 claim_fail=Kunne ikke claim USB-interface: 
 claim_hint= (kør med sudo eller installer udev-reglen)
+claim_hint_win= (installér WinUSB-driveren med Zadig: nfc udev install)
+open_fail=kunne ikke åbne 
+winusb_missing=nfc: Zadig er ikke bygget ind i denne nfc.exe
+winusb_started=Zadig startet: 
+winusb_text<<<
+Windows bruger ikke udev. ACR122U skal have WinUSB-driveren, ellers kan nfc ikke åbne læseren.
+
+Zadig ligger inde i nfc.exe. Kør:  nfc udev install
+
+1. Kør nfc udev install. Zadig pakkes ud og åbnes. Ellers hent den fra https://zadig.akeo.ie/
+2. Sæt læseren i. Options → List All Devices
+3. Vælg ACR122U eller CCID USB Reader (USB 072f:2200)
+4. Driver: WinUSB → Replace Driver
+5. Tag stikket ud og sæt det i igen
+
+Tags gemmes i %APPDATA%\nfc-games\tags.conf
+Steam-spil startes via steam://. Tag-løft stopper spillets proces.
+Emulator- og handlings-tags kører via cmd.exe /c.
+Hooks kan læse %NFC_ID% og %NFC_NAME%.
+<<<
 timeout_tag=timeout: intet tag
 ccid_short=CCID-svar for kort
 ccid_unexpected=Uventet CCID-svar

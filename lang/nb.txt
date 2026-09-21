@@ -89,9 +89,32 @@ Mer
  18  skann emu ROMs
   0  tilbake
 <<<
+menu_more_text_win<<<
+Mer
+  1  vis Steam-spill
+  2  start spill
+  3  stopp spill
+  4  vis kjørende spill
+  5  test LED og bipp
+  6  vis leser-firmware
+  7  WinUSB-driver (Zadig)
+  8  backup av tag
+  9  gendan tag
+ 10  hjelp
+ 11  versjon
+ 12  genstart lyt
+ 13  lyt i denne terminalen
+ 14  skann spill (steam/emu/lutris/all)
+ 15  installer Lutris-spill
+ 16  skann GOG-spill
+ 17  installer GOG-spill
+ 18  skann emu ROMs
+  0  tilbake
+<<<
 menu_prompt=Nummer: 
 menu_ask_game=spill eller appid: 
 menu_ask_action=skalkommando (f.eks. 'echo hei > /tmp/test.txt'; kjøres via sh -c når taggen legges på; legg til ' || av-kommando' for løft): 
+menu_ask_action_win=kommando (kjøres via cmd /c når taggen legges på; legg til ' || av-kommando' for løft): 
 menu_ask_emu=emulatorspill eller kommando (tomt = velg fra listen): 
 menu_ask_lutris=Lutris-spill eller slug (tomt = velg fra listen): 
 menu_ask_lutris_install=Lutris-spill å installere (slug eller navn): 
@@ -168,6 +191,26 @@ lang_saved=lagret i
 no_reader=Ingen ACR122U funnet (USB 072f:2200). Er leseren satt i?
 claim_fail=Kunne ikke ta USB-grensesnittet: 
 claim_hint= (kjør med sudo eller installer udev-regelen)
+claim_hint_win= (installer WinUSB-driveren med Zadig: nfc udev install)
+open_fail=kunne ikke åpne 
+winusb_missing=nfc: Zadig er ikke bygd inn i denne nfc.exe
+winusb_started=Zadig startet: 
+winusb_text<<<
+Windows bruker ikke udev. ACR122U må ha WinUSB-driveren, ellers kan ikke nfc åpne leseren.
+
+Zadig ligger i nfc.exe. Kjør:  nfc udev install
+
+1. Kjør nfc udev install. Zadig pakkes ut og åpnes. Ellers hent den fra https://zadig.akeo.ie/
+2. Sett i leseren. Options → List All Devices
+3. Velg ACR122U eller CCID USB Reader (USB 072f:2200)
+4. Driver: WinUSB → Replace Driver
+5. Trekk ut USB og sett i igjen
+
+Brikker lagres i %APPDATA%\nfc-games\tags.conf
+Steam-spill startes via steam://. Brikke av stopper spillprosessen.
+Emulator- og handlingsbrikker kjører via cmd.exe /c.
+Hooks kan lese %NFC_ID% og %NFC_NAME%.
+<<<
 timeout_tag=timeout: ingen brikke
 ccid_short=CCID-svar for kort
 ccid_unexpected=Uventet CCID-svar

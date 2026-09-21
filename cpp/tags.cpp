@@ -1,5 +1,6 @@
 #include "tags.hpp"
 #include "i18n.hpp"
+#include "plat.hpp"
 
 #include <algorithm>
 #include <cctype>
@@ -61,9 +62,7 @@ void migrate_legacy_tags(const std::filesystem::path& dest) {
   std::error_code ec;
   if (std::filesystem::exists(dest, ec)) return;
   std::vector<std::filesystem::path> cands = {std::filesystem::current_path() / "tags.conf"};
-  if (const char* home = std::getenv("HOME"); home && *home) {
-    cands.push_back(std::filesystem::path(home) / "nfc-games" / "tags.conf");
-  }
+  cands.push_back(plat::home_dir() / "nfc-games" / "tags.conf");
   for (const auto& src : cands) {
     if (src == dest) continue;
     if (!std::filesystem::is_regular_file(src, ec)) continue;

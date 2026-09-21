@@ -1,17 +1,18 @@
 #include "app.hpp"
 #include "i18n.hpp"
+#include "plat.hpp"
 
 #include <chrono>
-#include <cerrno>
-#include <csignal>
 #include <cstdlib>
 #include <fstream>
 #include <iostream>
-#include <sys/types.h>
-#include <sys/wait.h>
 #include <thread>
-#include <unistd.h>
 #include <vector>
+
+#ifndef _WIN32
+#include <sys/wait.h>
+#include <unistd.h>
+#endif
 
 using namespace std::chrono_literals;
 
@@ -25,11 +26,7 @@ std::vector<std::filesystem::path> share_dirs() {
     dirs.emplace_back(share);
   }
   dirs.push_back(std::filesystem::current_path());
-  char buf[4096];
-  const ssize_t n = ::readlink("/proc/self/exe", buf, sizeof(buf) - 1);
-  if (n > 0) {
-    buf[n] = 0;
-    const auto exe = std::filesystem::path(buf);
+  if (const auto exe = plat::exe_path(); !exe.empty()) {
     dirs.push_back(exe.parent_path());
     dirs.push_back(exe.parent_path().parent_path());
     dirs.push_back(exe.parent_path().parent_path() / "share" / "nfc-games");
@@ -107,6 +104,11 @@ std::filesystem::path udev_helper() {
 }
 
 int run_udev_install(const std::filesystem::path& helper, const std::filesystem::path& rule) {
+#ifdef _WIN32
+  (void)helper;
+  (void)rule;
+  return 1;
+#else
   std::error_code ec;
   const auto staged_dir = nfc_config_dir() / "udev";
   std::filesystem::create_directories(staged_dir, ec);
@@ -144,6 +146,7 @@ int run_udev_install(const std::filesystem::path& helper, const std::filesystem:
   if (::waitpid(pid, &st, 0) < 0) return 1;
   if (WIFEXITED(st)) return WEXITSTATUS(st);
   return 1;
+#endif
 }
 
 std::filesystem::path watch_pid_path() { return nfc_config_dir() / "watch.pid"; }
@@ -171,7 +174,7 @@ bool usb_pause_requested() {
     usb_pause_remove_if_pid(pid);
     return false;
   }
-  if (::kill(pid, 0) != 0 && errno == ESRCH) {
+  if (!plat::process_alive(pid)) {
     usb_pause_remove_if_pid(pid);
     return false;
   }
@@ -182,12 +185,12 @@ UsbPause::UsbPause() {
   std::error_code ec;
   std::filesystem::create_directories(nfc_config_dir(), ec);
   std::ofstream out(usb_pause_path());
-  out << ::getpid() << "\n";
+  out << plat::current_pid() << "\n";
 }
 
 UsbPause::~UsbPause() {
   // Only remove the file we wrote, so we never clobber a newer pauser.
-  usb_pause_remove_if_pid(::getpid());
+  usb_pause_remove_if_pid(plat::current_pid());
 }
 
 Acr122 open_reader() {

@@ -1,4 +1,5 @@
 #include "roms.hpp"
+#include "plat.hpp"
 
 #include <algorithm>
 #include <cctype>
@@ -39,13 +40,7 @@ std::string expand_vars(const std::string& in, const std::map<std::string, std::
   return out;
 }
 
-std::string config_home() {
-  if (const char* xdg = std::getenv("XDG_CONFIG_HOME"); xdg && *xdg) return xdg;
-  if (const char* home = std::getenv("HOME"); home && *home) {
-    return std::string(home) + "/.config";
-  }
-  return {};
-}
+std::string config_home() { return plat::config_home().string(); }
 
 std::string read_file(const std::string& path) {
   std::ifstream in(path, std::ios::binary);
@@ -350,9 +345,8 @@ std::string roms_dir_path() {
       return *dir;
     }
   }
-  if (const char* home = std::getenv("HOME"); home && *home) {
-    return std::string(home) + "/Emulation/roms";
-  }
+  const auto home = plat::home_dir();
+  if (!home.empty()) return (home / "Emulation" / "roms").string();
   return {};
 }
 

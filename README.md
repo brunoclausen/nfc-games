@@ -35,6 +35,17 @@ and clone variants such as the tested `ACR122U216` are supported.
 - ...or launch any emulator directly with the `emu` kind (`nfc add emu '<command>'`)
 - To build: C++20, CMake ≥ 3.16, pkg-config, libusb-1.0 development files
 
+## Windows 11
+
+A console build for 64-bit Windows 11 is produced with `scripts/build-windows.sh`
+(cross-compiled). The zip is `dist/nfc-games-<version>-windows-x86_64.zip`.
+
+The reader must use the **WinUSB** driver once (Zadig, USB `072f:2200`).
+Zadig is embedded in `nfc.exe`. Run `nfc udev install`. Tags are stored in
+`%APPDATA%\nfc-games\tags.conf`.
+Steam must be installed and running; games launch through `steam://`. Lutris
+is not available on Windows. Emulator and action tags run with `cmd.exe /c`.
+
 ## Build and run (C++)
 
 This is the source runtime: `./build/nfc`.

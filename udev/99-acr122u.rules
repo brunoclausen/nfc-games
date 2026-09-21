@@ -1,6 +1,10 @@
 # ACR122U: userspace CCID (nfc-games / libusb), not the kernel NFC stack.
 ACTION=="add", SUBSYSTEM=="usb", ENV{DEVTYPE}=="usb_device", ATTR{idVendor}=="072f", ATTR{idProduct}=="2200", MODE="0666", TAG+="uaccess"
 
+# Disable USB autosuspend for ACR122U — firmware hangs on suspend/resume.
+# Must run after pcscd rule (92_pcscd_ccid.rules) which enables it.
+ACTION=="add", SUBSYSTEM=="usb", ENV{DEVTYPE}=="usb_device", ATTR{idVendor}=="072f", ATTR{idProduct}=="2200", ATTR{power/control}="on", ATTR{power/persist}="1", ATTR{power/autosuspend_delay_ms}="-1"
+
 # Race: pn533_usb may bind before this rule. Unbind if it did.
 ACTION=="add", SUBSYSTEM=="usb", DRIVER=="pn533_usb", ATTRS{idVendor}=="072f", ATTRS{idProduct}=="2200", RUN+="/bin/sh -c 'echo -n %k > /sys/bus/usb/drivers/pn533_usb/unbind'"
 ACTION=="add", SUBSYSTEM=="usb", DRIVER=="pn533", ATTRS{idVendor}=="072f", ATTRS{idProduct}=="2200", RUN+="/bin/sh -c 'echo -n %k > /sys/bus/usb/drivers/pn533/unbind'"

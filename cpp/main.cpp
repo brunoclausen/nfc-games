@@ -3,16 +3,17 @@
 #include "commands.hpp"
 #include "i18n.hpp"
 #include "menu.hpp"
+#include "plat.hpp"
 
 #include <iostream>
 #include <string>
-#include <unistd.h>
 
 #ifndef NFC_VERSION
 #define NFC_VERSION "dev"
 #endif
 
 int main(int argc, char** argv) {
+  plat::console_utf8();
   i18n_init();
   try {
     for (int i = 1; i < argc; ++i) {
@@ -27,7 +28,7 @@ int main(int argc, char** argv) {
       }
     }
     if (argc < 2) {
-      if (::isatty(STDIN_FILENO)) return cmd_menu();
+      if (plat::stdin_is_tty()) return cmd_menu();
       usage();
       return 2;
     }

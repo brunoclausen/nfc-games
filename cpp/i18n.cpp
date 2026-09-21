@@ -1,13 +1,13 @@
 #include "i18n.hpp"
 
+#include "plat.hpp"
+
 #include <cctype>
 #include <cstdlib>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
-#include <pwd.h>
 #include <string>
-#include <unistd.h>
 #include <unordered_map>
 #include <vector>
 
@@ -57,11 +57,7 @@ std::vector<std::filesystem::path> lang_dirs() {
   }
   add(std::filesystem::current_path() / "lang");
   add(std::filesystem::current_path());
-  char buf[4096];
-  const ssize_t n = ::readlink("/proc/self/exe", buf, sizeof(buf) - 1);
-  if (n > 0) {
-    buf[n] = 0;
-    const auto exe = std::filesystem::path(buf);
+  if (const auto exe = plat::exe_path(); !exe.empty()) {
     const auto root = exe.parent_path();
     add(root / "lang");
     add(root.parent_path() / "lang");
@@ -177,6 +173,10 @@ std::string detect_system_lang() {
     auto code = normalize_code(s);
     if (known_code(code)) return code;
   }
+  if (const auto loc = plat::user_locale(); !loc.empty()) {
+    auto code = normalize_code(loc);
+    if (known_code(code)) return code;
+  }
   return {};
 }
 
@@ -209,16 +209,7 @@ std::string read_config_lang() {
 
 }  // namespace
 
-std::filesystem::path nfc_config_dir() {
-  if (const char* xdg = std::getenv("XDG_CONFIG_HOME"); xdg && *xdg) {
-    return std::filesystem::path(xdg) / "nfc-games";
-  }
-  const char* home = std::getenv("HOME");
-  if (!home || !*home) {
-    if (passwd* pw = ::getpwuid(::getuid())) home = pw->pw_dir;
-  }
-  return std::filesystem::path(home && *home ? home : "/tmp") / ".config" / "nfc-games";
-}
+std::filesystem::path nfc_config_dir() { return plat::config_home() / "nfc-games"; }
 
 std::vector<Language> languages() {
   if (g_langs.empty()) load_lang_list_ok();

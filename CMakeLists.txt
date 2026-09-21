@@ -18,23 +18,45 @@ elseif(EXISTS "/home/linuxbrew/.linuxbrew/lib/pkgconfig")
   set(ENV{PKG_CONFIG_PATH} "/home/linuxbrew/.linuxbrew/lib/pkgconfig:$ENV{PKG_CONFIG_PATH}")
 endif()
 
-find_package(PkgConfig)
-if(PkgConfig_FOUND)
-  pkg_check_modules(LIBUSB libusb-1.0)
-endif()
-if(NOT LIBUSB_FOUND)
+if(WIN32)
+  if(NOT LIBUSB_ROOT AND DEFINED ENV{LIBUSB_ROOT})
+    set(LIBUSB_ROOT "$ENV{LIBUSB_ROOT}")
+  endif()
   find_path(LIBUSB_INCLUDE_DIRS libusb.h
+    NO_CMAKE_FIND_ROOT_PATH
     PATHS
-      /usr/include/libusb-1.0
-      /usr/local/include/libusb-1.0
-      /home/linuxbrew/.linuxbrew/include/libusb-1.0
+      "${LIBUSB_ROOT}/include/libusb-1.0"
+      "${LIBUSB_ROOT}/include"
   )
-  find_library(LIBUSB_LIBRARIES NAMES usb-1.0
-    PATHS /usr/lib64 /usr/lib /usr/lib/x86_64-linux-gnu /usr/local/lib
+  find_library(LIBUSB_LIBRARIES NAMES usb-1.0 libusb-1.0
+    NO_CMAKE_FIND_ROOT_PATH
+    PATHS
+      "${LIBUSB_ROOT}/lib"
+      "${LIBUSB_ROOT}/MinGW64/static"
+      "${LIBUSB_ROOT}/MinGW64/dll"
   )
-endif()
-if(NOT LIBUSB_INCLUDE_DIRS OR (NOT LIBUSB_FOUND AND NOT LIBUSB_LIBRARIES))
-  message(FATAL_ERROR "libusb-1.0 not found. Install libusb1-devel or libusb-1.0-0-dev.")
+  if(NOT LIBUSB_INCLUDE_DIRS OR NOT LIBUSB_LIBRARIES)
+    message(FATAL_ERROR "libusb-1.0 not found. Set LIBUSB_ROOT to a MinGW libusb prefix.")
+  endif()
+else()
+  find_package(PkgConfig)
+  if(PkgConfig_FOUND)
+    pkg_check_modules(LIBUSB libusb-1.0)
+  endif()
+  if(NOT LIBUSB_FOUND)
+    find_path(LIBUSB_INCLUDE_DIRS libusb.h
+      PATHS
+        /usr/include/libusb-1.0
+        /usr/local/include/libusb-1.0
+        /home/linuxbrew/.linuxbrew/include/libusb-1.0
+    )
+    find_library(LIBUSB_LIBRARIES NAMES usb-1.0
+      PATHS /usr/lib64 /usr/lib /usr/lib/x86_64-linux-gnu /usr/local/lib
+    )
+  endif()
+  if(NOT LIBUSB_INCLUDE_DIRS OR (NOT LIBUSB_FOUND AND NOT LIBUSB_LIBRARIES))
+    message(FATAL_ERROR "libusb-1.0 not found. Install libusb1-devel or libusb-1.0-0-dev.")
+  endif()
 endif()
 
 add_executable(nfc
@@ -51,12 +73,34 @@ add_executable(nfc
   cpp/roms.cpp
   cpp/launch.cpp
   cpp/i18n.cpp
+  cpp/plat.cpp
 )
 target_include_directories(nfc PRIVATE cpp ${LIBUSB_INCLUDE_DIRS})
-target_compile_options(nfc PRIVATE ${LIBUSB_CFLAGS_OTHER} -Wall -Wextra)
+if(MSVC)
+  target_compile_options(nfc PRIVATE /W4)
+else()
+  target_compile_options(nfc PRIVATE ${LIBUSB_CFLAGS_OTHER} -Wall -Wextra)
+endif()
 target_compile_definitions(nfc PRIVATE NFC_VERSION="${NFC_VERSION}")
 
-if(NFC_APPIMAGE)
+if(WIN32)
+  target_link_libraries(nfc PRIVATE ${LIBUSB_LIBRARIES} setupapi ole32 advapi32 shell32)
+  if(MINGW)
+    target_link_options(nfc PRIVATE -static -static-libgcc -static-libstdc++
+      -Wl,--major-subsystem-version=10,--minor-subsystem-version=0)
+  endif()
+  if(NFC_ZADIG_EXE)
+    if(NOT EXISTS "${NFC_ZADIG_EXE}")
+      message(FATAL_ERROR "NFC_ZADIG_EXE not found: ${NFC_ZADIG_EXE}")
+    endif()
+    enable_language(RC)
+    file(TO_CMAKE_PATH "${NFC_ZADIG_EXE}" NFC_ZADIG_CMAKE)
+    string(REPLACE "\\" "/" NFC_ZADIG_CMAKE "${NFC_ZADIG_CMAKE}")
+    file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/zadig.rc" "ZADIG RCDATA \"${NFC_ZADIG_CMAKE}\"\n")
+    target_sources(nfc PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/zadig.rc")
+    target_compile_definitions(nfc PRIVATE NFC_EMBED_ZADIG=1)
+  endif()
+elseif(NFC_APPIMAGE)
   find_library(NFC_SYSTEM_LIBUSB NAMES usb-1.0
     PATHS /usr/lib64 /usr/lib /usr/lib/x86_64-linux-gnu /lib64 /lib
   )
@@ -97,15 +141,19 @@ install(FILES HELP.md HELP.en.md LICENSE README.md README.da.md
   DESTINATION ${CMAKE_INSTALL_DATADIR}/nfc-games)
 install(DIRECTORY lang DESTINATION ${CMAKE_INSTALL_DATADIR}/nfc-games
   FILES_MATCHING PATTERN "*.txt")
-install(FILES udev/99-acr122u.rules DESTINATION ${CMAKE_INSTALL_DATADIR}/nfc-games/udev)
-install(PROGRAMS packaging/install-udev.sh DESTINATION ${CMAKE_INSTALL_DATADIR}/nfc-games/udev)
-install(FILES packaging/nfc-games.desktop DESTINATION ${CMAKE_INSTALL_DATADIR}/applications)
-install(FILES packaging/nfc-games.png DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/256x256/apps)
+if(NOT WIN32)
+  install(FILES udev/99-acr122u.rules DESTINATION ${CMAKE_INSTALL_DATADIR}/nfc-games/udev)
+  install(PROGRAMS packaging/install-udev.sh DESTINATION ${CMAKE_INSTALL_DATADIR}/nfc-games/udev)
+  install(FILES packaging/nfc-games.desktop DESTINATION ${CMAKE_INSTALL_DATADIR}/applications)
+  install(FILES packaging/nfc-games.png DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/256x256/apps)
+endif()
 
+if(NOT WIN32)
 enable_testing()
-add_executable(nfc_tests tests/test_nfc.cpp cpp/steam.cpp cpp/lutris.cpp cpp/roms.cpp cpp/tags.cpp cpp/i18n.cpp cpp/ndef.cpp cpp/launch.cpp)
+add_executable(nfc_tests tests/test_nfc.cpp cpp/steam.cpp cpp/lutris.cpp cpp/roms.cpp cpp/tags.cpp cpp/i18n.cpp cpp/ndef.cpp cpp/launch.cpp cpp/plat.cpp)
 target_include_directories(nfc_tests PRIVATE cpp)
 target_compile_definitions(nfc_tests PRIVATE NFC_VERSION="${NFC_VERSION}")
 add_test(NAME nfc_tests COMMAND nfc_tests)
 set_tests_properties(nfc_tests PROPERTIES
   ENVIRONMENT "NFC_SHARE=${CMAKE_SOURCE_DIR}")
+endif()

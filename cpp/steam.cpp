@@ -1,5 +1,6 @@
 #include "steam.hpp"
 #include "i18n.hpp"
+#include "plat.hpp"
 
 #include <algorithm>
 #include <cctype>
@@ -10,17 +11,11 @@
 #include <iterator>
 #include <optional>
 #include <chrono>
-#include <csignal>
-#include <dirent.h>
-#include <pwd.h>
 #include <sstream>
 #include <stdexcept>
 #include <string>
 #include <string_view>
-#include <sys/types.h>
-#include <sys/wait.h>
 #include <thread>
-#include <unistd.h>
 #include <unordered_set>
 #include <vector>
 
@@ -33,12 +28,19 @@ std::string lower(std::string s) {
   return s;
 }
 
-std::string home_dir() {
-  if (const char* h = std::getenv("HOME"); h && *h) return h;
-  if (passwd* pw = ::getpwuid(::getuid())) {
-    if (pw->pw_dir && *pw->pw_dir) return pw->pw_dir;
-  }
-  return "/tmp";
+std::string home_dir() { return plat::home_dir().string(); }
+
+bool cmd_contains(const std::string& cmd, const std::string& needle) {
+  if (needle.empty()) return false;
+#ifndef _WIN32
+  return cmd.find(needle) != std::string::npos;
+#else
+  auto lower = [](std::string s) {
+    for (char& c : s) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    return s;
+  };
+  return lower(cmd).find(lower(needle)) != std::string::npos;
+#endif
 }
 
 bool is_tool(const SteamGame& g) {
@@ -89,6 +91,16 @@ std::vector<fs::path> steam_roots() {
       home / ".var" / "app" / "com.valvesoftware.Steam" / "data" / "Steam",
       home / "snap" / "steam" / "common" / ".steam" / "steam",
   };
+#ifdef _WIN32
+  if (auto reg = plat::steam_registry_path(); !reg.empty()) cands.insert(cands.begin(), reg);
+  if (const char* pf86 = std::getenv("ProgramFiles(x86)"); pf86 && *pf86) {
+    cands.push_back(fs::path(pf86) / "Steam");
+  }
+  if (const char* pf = std::getenv("ProgramFiles"); pf && *pf) {
+    cands.push_back(fs::path(pf) / "Steam");
+  }
+  cands.push_back(home / "Steam");
+#endif
   if (const char* env = std::getenv("STEAM_DIR")) cands.insert(cands.begin(), fs::path(env));
 
   std::vector<fs::path> roots;
@@ -361,96 +373,41 @@ std::string SteamLibrary::process_needle(const SteamGame& g) {
 
 namespace {
 
-void apply_steam_session_env() {
-  DIR* proc = ::opendir("/proc");
-  if (!proc) return;
-  int steam_pid = 0;
-  while (dirent* ent = ::readdir(proc)) {
-    if (ent->d_name[0] < '1' || ent->d_name[0] > '9') continue;
-    std::ifstream in("/proc/" + std::string(ent->d_name) + "/cmdline", std::ios::binary);
-    if (!in) continue;
-    std::string cmd((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
-    if (cmd.find("bazzite-steam") != std::string::npos ||
-        cmd.find("ubuntu12_32/steam") != std::string::npos) {
-      steam_pid = std::atoi(ent->d_name);
-      if (cmd.find("bazzite-steam") != std::string::npos) break;
-    }
-  }
-  ::closedir(proc);
-  if (steam_pid <= 0) return;
-  std::ifstream envf("/proc/" + std::to_string(steam_pid) + "/environ", std::ios::binary);
-  if (!envf) return;
-  std::string raw((std::istreambuf_iterator<char>(envf)), std::istreambuf_iterator<char>());
-  std::string key;
-  for (char c : raw) {
-    if (c == '\0') {
-      auto eq = key.find('=');
-      if (eq != std::string::npos) {
-        const std::string k = key.substr(0, eq);
-        if (k == "DISPLAY" || k == "WAYLAND_DISPLAY" || k == "XDG_RUNTIME_DIR" ||
-            k == "DBUS_SESSION_BUS_ADDRESS" || k == "XDG_SESSION_TYPE" ||
-            k == "XAUTHORITY" || k == "XDG_SESSION_DESKTOP" || k == "XDG_CURRENT_DESKTOP") {
-          ::setenv(k.c_str(), key.c_str() + eq + 1, 1);
-        }
-      }
-      key.clear();
-    } else {
-      key.push_back(c);
-    }
-  }
-}
-
 struct ProcLine {
   int pid = 0;
   std::string cmd;
 };
 
-std::string read_cmdline(int pid) {
-  std::ifstream in("/proc/" + std::to_string(pid) + "/cmdline", std::ios::binary);
-  if (!in) return {};
-  std::string cmd((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
-  for (char& c : cmd) {
-    if (c == '\0') c = ' ';
-  }
-  return cmd;
-}
-
 bool protected_proc(int pid, const std::string& cmd) {
   if (pid <= 1) return true;
-  if (pid == ::getpid() || pid == ::getppid()) return true;
+  if (pid == plat::current_pid() || pid == plat::parent_pid()) return true;
   if (cmd.find("steamwebhelper") != std::string::npos) return true;
   if (cmd.find("__grok_user_cmd") != std::string::npos) return true;
   if (cmd.find("/usr/bin/steam") != std::string::npos &&
       cmd.find("SteamLaunch") == std::string::npos) {
     return true;
   }
+  if (cmd.find("steam.exe") != std::string::npos && cmd.find("steamapps") == std::string::npos &&
+      cmd.find("SteamLaunch") == std::string::npos) {
+    return true;
+  }
   if (cmd.find("nfc-games") != std::string::npos) return true;
-  if (cmd.find("/usr/bin/nfc") != std::string::npos) return true;
+  if (cmd.find("/usr/bin/nfc") != std::string::npos || cmd.find("nfc.exe") != std::string::npos) {
+    return true;
+  }
   return false;
 }
 
 std::vector<ProcLine> snapshot_proc() {
   std::vector<ProcLine> out;
-  DIR* proc = ::opendir("/proc");
-  if (!proc) return out;
-  while (dirent* ent = ::readdir(proc)) {
-    if (ent->d_name[0] < '1' || ent->d_name[0] > '9') continue;
-    const int pid = std::atoi(ent->d_name);
-    auto cmd = read_cmdline(pid);
-    if (cmd.empty()) continue;
-    out.push_back({pid, std::move(cmd)});
-  }
-  ::closedir(proc);
+  for (const auto& proc : plat::snapshot_processes()) out.push_back({proc.pid, proc.cmd});
   return out;
 }
 
 void collect_tree(int pid, std::vector<int>& out, std::unordered_set<int>& seen) {
-  if (pid <= 1 || !seen.insert(pid).second) return;
-  out.push_back(pid);
-  std::ifstream in("/proc/" + std::to_string(pid) + "/task/" + std::to_string(pid) +
-                   "/children");
-  int child = 0;
-  while (in >> child) collect_tree(child, out, seen);
+  for (int child : plat::descendant_pids(pid)) {
+    if (seen.insert(child).second) out.push_back(child);
+  }
 }
 
 std::uint32_t appid_from_steamlaunch(const std::string& cmd) {
@@ -491,21 +448,7 @@ std::string SteamLibrary::steam_uri(const SteamGame& game) {
 
 void SteamLibrary::launch(const SteamGame& game) {
   if (game.appid == 0) throw std::runtime_error(t("missing_appid"));
-  const std::string uri = steam_uri(game);
-  const pid_t pid = ::fork();
-  if (pid < 0) throw std::runtime_error(t("steam_fork"));
-  if (pid > 0) {
-    int st = 0;
-    ::waitpid(pid, &st, 0);
-    return;
-  }
-  const pid_t child = ::fork();
-  if (child < 0) ::_exit(127);
-  if (child > 0) ::_exit(0);
-  ::setsid();
-  apply_steam_session_env();
-  ::execlp("steam", "steam", uri.c_str(), static_cast<char*>(nullptr));
-  ::_exit(127);
+  plat::open_steam_uri(steam_uri(game));
 }
 
 std::vector<RunningGame> SteamLibrary::running() {
@@ -528,13 +471,21 @@ std::vector<RunningGame> SteamLibrary::running() {
     if (needle.size() < 8) continue;
     for (const auto& p : procs) {
       if (protected_proc(p.pid, p.cmd)) continue;
-      if (p.cmd.find(needle) != std::string::npos) {
+      if (cmd_contains(p.cmd, needle)) {
         out.push_back({g.appid, p.pid});
         seen.insert(g.appid);
         break;
       }
     }
   }
+#ifdef _WIN32
+  for (const auto& g : lib.games()) {
+    if (g.appid == 0 || seen.count(g.appid)) continue;
+    if (!plat::steam_app_running(g.appid)) continue;
+    out.push_back({g.appid, 0});
+    seen.insert(g.appid);
+  }
+#endif
   return out;
 }
 
@@ -550,11 +501,13 @@ bool SteamLibrary::is_running(std::uint32_t appid) {
   for (const auto& p : snapshot_proc()) {
     if (appid_from_steamlaunch(p.cmd) == appid) return true;
     if (cmd_matches_appid(p.cmd, appid)) return true;
-    if (needle.size() >= 8 && !protected_proc(p.pid, p.cmd) &&
-        p.cmd.find(needle) != std::string::npos) {
+    if (needle.size() >= 8 && !protected_proc(p.pid, p.cmd) && cmd_contains(p.cmd, needle)) {
       return true;
     }
   }
+#ifdef _WIN32
+  if (plat::steam_app_running(appid)) return true;
+#endif
   return false;
 }
 
@@ -566,7 +519,7 @@ std::vector<int> pids_for_appid(std::uint32_t appid, const std::vector<std::stri
     bool hit = SteamLibrary::cmd_matches_appid(p.cmd, appid);
     for (const auto& n : needles) {
       if (hit) break;
-      if (n.size() >= 8 && p.cmd.find(n) != std::string::npos) hit = true;
+      if (n.size() >= 8 && cmd_contains(p.cmd, n)) hit = true;
     }
     if (!hit) continue;
     std::vector<int> tree;
@@ -588,6 +541,12 @@ int SteamLibrary::stop(std::uint32_t appid) {
   std::vector<std::string> needles;
   auto dir = installdir_of(appid);
   if (dir.size() >= 8) needles.push_back(dir);
+#ifdef _WIN32
+  if (!dir.empty()) {
+    needles.push_back("steamapps\\common\\" + dir);
+    needles.push_back("steamapps/common/" + dir);
+  }
+#endif
   for (const auto& g : lib.games()) {
     if (g.appid != appid) continue;
     auto n = process_needle(g);
@@ -597,8 +556,8 @@ int SteamLibrary::stop(std::uint32_t appid) {
   auto collect = [&] { return pids_for_appid(appid, needles); };
   int n = 0;
   for (int pid : collect()) {
-    if (pid == ::getpid() || pid == ::getppid()) continue;
-    ::kill(pid, SIGTERM);
+    if (pid == plat::current_pid() || pid == plat::parent_pid()) continue;
+    plat::signal_term(pid);
     ++n;
   }
   using clock = std::chrono::steady_clock;
@@ -608,8 +567,8 @@ int SteamLibrary::stop(std::uint32_t appid) {
     std::this_thread::sleep_for(std::chrono::milliseconds{150});
   }
   for (int pid : collect()) {
-    if (pid == ::getpid() || pid == ::getppid()) continue;
-    ::kill(pid, SIGKILL);
+    if (pid == plat::current_pid() || pid == plat::parent_pid()) continue;
+    plat::signal_kill(pid);
     ++n;
   }
   std::this_thread::sleep_for(std::chrono::milliseconds{200});

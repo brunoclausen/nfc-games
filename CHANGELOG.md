@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.0.14
+
+- Windows 11 x86_64 build (`scripts/build-windows.sh`). Same tag flow:
+  ACR122U over libusb/WinUSB, Steam via `steam://`, emulator commands via `cmd /c`
+- Config lives in `%APPDATA%\nfc-games`. A running Steam game is seen from
+  the Steam `Apps\<appid>\Running` registry value and from the process path
+- `nfc udev` explains the one-time Zadig WinUSB driver instead of a udev rule
+- `nfc.exe` contains 64-bit Zadig 2025.2. `nfc udev install` unpacks it and starts it
+
 ## 1.0.13
 
 - Menu: "Emulator games" and "Lutris games" bind a tag directly (no extra prompt)

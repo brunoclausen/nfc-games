@@ -102,9 +102,32 @@ More
  18  scan emu ROMs
   0  back
 <<<
+menu_more_text_win<<<
+More
+  1  list Steam games
+  2  start game
+  3  stop game
+  4  show running game
+  5  test LED and beep
+  6  show reader firmware
+  7  WinUSB driver (Zadig)
+  8  back up tag
+  9  restore tag
+ 10  help
+ 11  version
+ 12  restart listener
+ 13  listen in this terminal
+ 14  scan games (steam/emu/lutris/all)
+ 15  install Lutris game
+ 16  scan GOG games
+ 17  install GOG game
+ 18  scan emu ROMs
+  0  back
+<<<
 menu_prompt=Number: 
 menu_ask_game=game or appid: 
 menu_ask_action=shell command (e.g. 'echo hi > /tmp/test.txt'; runs via sh -c on tag on; add ' || off-command' for tag off): 
+menu_ask_action_win=command (runs via cmd /c when the tag is placed; add ' || off-command' for tag off): 
 menu_ask_emu=emulator game or command (empty = choose from list): 
 menu_ask_lutris=lutris game or slug (empty = choose from list): 
 menu_ask_lutris_install=lutris game to install (slug or name): 
@@ -181,6 +204,26 @@ lang_saved=saved in
 no_reader=No ACR122U found (USB 072f:2200). Is the reader plugged in?
 claim_fail=Could not claim USB interface: 
 claim_hint= (run with sudo or install the udev rule)
+claim_hint_win= (install the WinUSB driver with Zadig: nfc udev install)
+open_fail=could not open 
+winusb_missing=nfc: Zadig is not built into this nfc.exe
+winusb_started=Zadig started: 
+winusb_text<<<
+Windows does not use udev. The ACR122U needs the WinUSB driver, or nfc cannot open the reader.
+
+Zadig is inside nfc.exe. Run:  nfc udev install
+
+1. Run nfc udev install. Zadig is unpacked and opened. Or download it from https://zadig.akeo.ie/
+2. Plug the reader in. Options → List All Devices
+3. Select ACR122U or CCID USB Reader (USB 072f:2200)
+4. Driver: WinUSB → Replace Driver
+5. Unplug the reader and plug it back in
+
+Tags are stored in %APPDATA%\nfc-games\tags.conf
+Steam games start with steam://. Tag off stops the game process.
+Emulator and action tags run through cmd.exe /c.
+Hooks can read %NFC_ID% and %NFC_NAME%.
+<<<
 timeout_tag=timeout: no tag
 ccid_short=CCID reply too short
 ccid_unexpected=Unexpected CCID reply

@@ -5,6 +5,10 @@
 #include <sys/types.h>
 #include <string>
 
+#if defined(_WIN32) && !defined(__MINGW32__) && !defined(__MINGW64__)
+using pid_t = int;
+#endif
+
 namespace launcher {
 
 // "steam://" / "lut://rungame/" / "heroic://launch/" URI for a bound tag.

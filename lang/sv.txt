@@ -89,9 +89,32 @@ Mer
  18  skanna emu ROMs
   0  tillbaka
 <<<
+menu_more_text_win<<<
+Mer
+  1  visa Steam-spel
+  2  starta spel
+  3  stoppa spel
+  4  visa pågående spel
+  5  testa LED och beep
+  6  visa läsare-firmware
+  7  WinUSB-drivrutin (Zadig)
+  8  säkerhetskopiera tag
+  9  återställa tag
+ 10  hjälp
+ 11  version
+ 12  starta om lyssnare
+ 13  lyssna i denna terminal
+ 14  skanna spel (steam/emu/lutris/all)
+ 15  installera Lutris-spel
+ 16  skanna GOG-spel
+ 17  installera GOG-spel
+ 18  skanna emu ROMs
+  0  tillbaka
+<<<
 menu_prompt=Nummer: 
 menu_ask_game=spel eller appid: 
 menu_ask_action=skalkommando (t.ex. 'echo hej > /tmp/test.txt'; körs via sh -c när taggen läggs på; lägg till ' || av-kommando' för lyft): 
+menu_ask_action_win=kommando (körs via cmd /c när taggen läggs på; lägg till ' || av-kommando' för lyft): 
 menu_ask_emu=emulatorspel eller kommando (tomt = välj från listan): 
 menu_ask_lutris=Lutris-spel eller slug (tomt = välj från listan): 
 menu_ask_lutris_install=Lutris-spel att installera (slug eller namn): 
@@ -168,6 +191,26 @@ lang_saved=sparad i
 no_reader=Ingen ACR122U hittades (USB 072f:2200). Är läsaren inkopplad?
 claim_fail=Kunde inte ta USB-gränssnittet: 
 claim_hint= (kör med sudo eller installera udev-regeln)
+claim_hint_win= (installera WinUSB-drivrutinen med Zadig: nfc udev install)
+open_fail=kunde inte öppna 
+winusb_missing=nfc: Zadig är inte inbyggd i den här nfc.exe
+winusb_started=Zadig startad: 
+winusb_text<<<
+Windows använder inte udev. ACR122U behöver WinUSB-drivrutinen, annars kan nfc inte öppna läsaren.
+
+Zadig ligger i nfc.exe. Kör:  nfc udev install
+
+1. Kör nfc udev install. Zadig packas upp och öppnas. Annars hämta den från https://zadig.akeo.ie/
+2. Sätt i läsaren. Options → List All Devices
+3. Välj ACR122U eller CCID USB Reader (USB 072f:2200)
+4. Drivrutin: WinUSB → Replace Driver
+5. Dra ur USB och sätt i igen
+
+Taggar sparas i %APPDATA%\nfc-games\tags.conf
+Steam-spel startas via steam://. Tagg av stoppar spelprocessen.
+Emulator- och åtgärdstaggar körs via cmd.exe /c.
+Hooks kan läsa %NFC_ID% och %NFC_NAME%.
+<<<
 timeout_tag=timeout: ingen tagg
 ccid_short=CCID-svar för kort
 ccid_unexpected=Oväntat CCID-svar

@@ -89,9 +89,32 @@ Plus
  18  scanner ROMs emu
   0  retour
 <<<
+menu_more_text_win<<<
+Plus
+  1  lister jeux Steam
+  2  démarrer jeu
+  3  arrêter jeu
+  4  afficher jeu en cours
+  5  tester LED et bip
+  6  afficher firmware lecteur
+  7  pilote WinUSB (Zadig)
+  8  sauvegarder tag
+  9  restaurer tag
+ 10  aide
+ 11  version
+ 12  redémarrer écoute
+ 13  écouter dans ce terminal
+ 14  scanner jeux (steam/emu/lutris/all)
+ 15  installer jeu Lutris
+ 16  scanner jeux GOG
+ 17  installer jeu GOG
+ 18  scanner ROMs emu
+  0  retour
+<<<
 menu_prompt=Numéro : 
 menu_ask_game=jeu ou appid :
 menu_ask_action=commande shell (ex. 'echo salut > /tmp/test.txt'; exécutée via sh -c à la pose ; ajouter ' || commande de retrait' pour le retrait): 
+menu_ask_action_win=commande (exécutée via cmd /c à la pose ; ajouter ' || commande de retrait' pour le retrait) : 
 menu_ask_emu=jeu d'émulateur ou commande (vide = choisir dans la liste) : 
 menu_ask_lutris=jeu Lutris ou slug (vide = choisir dans la liste) : 
 menu_ask_lutris_install=jeu Lutris à installer (slug ou nom) : 
@@ -168,6 +191,26 @@ lang_saved=enregistré dans
 no_reader=Aucun ACR122U (USB 072f:2200). Le lecteur est-il branché ?
 claim_fail=Impossible de réclamer l'interface USB : 
 claim_hint= (exécuter avec sudo ou installer la règle udev)
+claim_hint_win= (installez le pilote WinUSB avec Zadig : nfc udev install)
+open_fail=impossible d'ouvrir 
+winusb_missing=nfc : Zadig n'est pas intégré dans ce nfc.exe
+winusb_started=Zadig démarré : 
+winusb_text<<<
+Windows n'utilise pas udev. L'ACR122U a besoin du pilote WinUSB, sinon nfc ne peut pas ouvrir le lecteur.
+
+Zadig est dans nfc.exe. Lancez :  nfc udev install
+
+1. Lancez nfc udev install. Zadig est extrait puis ouvert. Sinon téléchargez-le sur https://zadig.akeo.ie/
+2. Branchez le lecteur. Options → List All Devices
+3. Choisissez ACR122U ou CCID USB Reader (USB 072f:2200)
+4. Pilote : WinUSB → Replace Driver
+5. Débranchez le lecteur et rebranchez-le
+
+Les tags sont dans %APPDATA%\nfc-games\tags.conf
+Les jeux Steam démarrent via steam://. Retirer le tag arrête le processus du jeu.
+Les tags émulateur et action passent par cmd.exe /c.
+Les hooks peuvent lire %NFC_ID% et %NFC_NAME%.
+<<<
 timeout_tag=délai dépassé : aucun tag
 ccid_short=réponse CCID trop courte
 ccid_unexpected=réponse CCID inattendue

@@ -2,6 +2,7 @@
 #include "app.hpp"
 #include "i18n.hpp"
 #include "launch.hpp"
+#include "plat.hpp"
 #include "steam.hpp"
 #include "tags.hpp"
 
@@ -11,8 +12,6 @@
 #include <iostream>
 #include <optional>
 #include <thread>
-#include <sys/wait.h>
-#include <unistd.h>
 
 using namespace std::chrono_literals;
 
@@ -64,21 +63,7 @@ void run_hook(bool start, const std::string& id, const std::string& name) {
   if (cmd.empty()) return;
   std::cout << (start ? "hook start " : "hook stop ") << id << "  " << name << "\n"
             << std::flush;
-  const pid_t a = ::fork();
-  if (a < 0) return;
-  if (a == 0) {
-    // intermediate child: fork once more and exit immediately so parent can reap
-    const pid_t b = ::fork();
-    if (b < 0) ::_exit(1);
-    if (b > 0) ::_exit(0);  // parent reaps this child right away
-    // grandchild (orphaned → reparented to init)
-    ::setsid();
-    ::execl("/bin/sh", "sh", "-c", cmd.c_str(), "nfc", id.c_str(), name.c_str(),
-            static_cast<char*>(nullptr));
-    ::_exit(127);
-  }
-  // parent: reap the intermediate child so it does not linger
-  ::waitpid(a, nullptr, 0);
+  plat::spawn_hook(cmd, id, name);
 }
 
 // Stop the active game if it can be stopped automatically. Steam kinds are
@@ -135,14 +120,14 @@ int cmd_watch() {
   {
     std::ifstream in(watch_pid_path());
     int old = 0;
-    if (in >> old && old > 0 && old != ::getpid() && ::kill(old, 0) == 0) {
+    if (in >> old && old > 0 && old != plat::current_pid() && plat::process_alive(old)) {
       std::cerr << t("watch_already") << old << ")\n";
       return 0;
     }
   }
   {
     std::ofstream pidf(watch_pid_path());
-    pidf << ::getpid() << "\n";
+    pidf << plat::current_pid() << "\n";
   }
   struct PidOwner {
     bool mine = true;
@@ -150,7 +135,7 @@ int cmd_watch() {
       if (!mine) return;
       std::ifstream in(watch_pid_path());
       int p = 0;
-      if (in >> p && p == ::getpid()) {
+      if (in >> p && p == plat::current_pid()) {
         std::error_code ec;
         std::filesystem::remove(watch_pid_path(), ec);
       }
@@ -178,8 +163,11 @@ int cmd_watch() {
   auto show_led = [&](Acr122::Led led) {
     if (!reader) return;
     if (shown_led && *shown_led == led) return;
-    set_led_safe(*reader, led);
-    shown_led = led;
+    try {
+      set_led_safe(*reader, led);
+      shown_led = led;
+    } catch (const Acr122Error&) {
+    }
   };
 
   auto drop_reader = [&](bool mark_deaf) {

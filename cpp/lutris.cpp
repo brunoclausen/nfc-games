@@ -1,12 +1,13 @@
 #include "lutris.hpp"
+#include "plat.hpp"
 
 #include <algorithm>
 #include <array>
 #include <cctype>
 #include <cstdio>
 #include <cstdlib>
+#include <filesystem>
 #include <sstream>
-#include <unistd.h>
 
 namespace {
 
@@ -21,14 +22,28 @@ std::string find_lutris_binary() {
   const char* path = std::getenv("PATH");
   if (!path || !*path) return {};
   const std::string p(path);
+  const char sep =
+#ifdef _WIN32
+      ';'
+#else
+      ':'
+#endif
+      ;
+  const char* name =
+#ifdef _WIN32
+      "lutris.exe"
+#else
+      "lutris"
+#endif
+      ;
   std::size_t start = 0;
   while (start <= p.size()) {
-    const std::size_t end = p.find(':', start);
+    const std::size_t end = p.find(sep, start);
     const std::string dir =
         p.substr(start, end == std::string::npos ? std::string::npos : end - start);
     if (!dir.empty()) {
-      const std::string cand = dir + "/lutris";
-      if (::access(cand.c_str(), X_OK) == 0) return cand;
+      const auto cand = std::filesystem::path(dir) / name;
+      if (plat::is_executable(cand)) return cand.string();
     }
     if (end == std::string::npos) break;
     start = end + 1;

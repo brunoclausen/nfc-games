@@ -50,7 +50,11 @@ void pause_menu() {
 
 bool more_menu() {
   while (true) {
+#ifdef _WIN32
+    print_block("menu_more_text_win");
+#else
     print_block("menu_more_text");
+#endif
     std::cout << t("menu_prompt") << std::flush;
     std::string line;
     if (!std::getline(std::cin, line)) return false;
@@ -164,7 +168,13 @@ int cmd_menu() {
       cmd = "add";
     } else if (line == "3") {
       cmd = "add";
-      arg = "action " + ask_line("menu_ask_action");
+      arg = "action " + ask_line(
+#ifdef _WIN32
+                            "menu_ask_action_win"
+#else
+                            "menu_ask_action"
+#endif
+                        );
     } else if (line == "4") {
       run_cmd("add", "emu", false);
       continue;

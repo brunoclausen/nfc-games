@@ -4,23 +4,25 @@
 #include "i18n.hpp"
 #include "launch.hpp"
 #include "lutris.hpp"
+#include "plat.hpp"
 #include "roms.hpp"
 #include "watch.hpp"
 
 #include <cctype>
-#include <cerrno>
 #include <chrono>
 #include <csignal>
+#include <cstdio>
 #include <cstdlib>
-#include <fcntl.h>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <map>
-#include <sys/wait.h>
 #include <thread>
-#include <unistd.h>
 #include <vector>
+
+#ifdef _WIN32
+#include <windows.h>
+#endif
 
 #ifndef NFC_VERSION
 #define NFC_VERSION "dev"
@@ -865,7 +867,7 @@ int cmd_add(const std::string& query) {
   if (first == "lutris" || first == "heroic") {
     std::string rest = rest0;
     if (rest.empty()) {
-      if (!::isatty(STDIN_FILENO)) {
+      if (!plat::stdin_is_tty()) {
         std::cerr << t("add_kind_usage") << "\n";
         return 2;
       }
@@ -900,7 +902,7 @@ int cmd_add(const std::string& query) {
   } else if (first == "emu") {
     std::string rest = rest0;
     if (rest.empty()) {
-      if (!::isatty(STDIN_FILENO)) {
+      if (!plat::stdin_is_tty()) {
         std::cerr << t("add_emu_usage") << "\n";
         return 2;
       }
@@ -922,7 +924,7 @@ int cmd_add(const std::string& query) {
     q.clear();
   }
   if (kind.empty() && q.empty()) {
-    if (!::isatty(STDIN_FILENO)) {
+    if (!plat::stdin_is_tty()) {
       usage();
       return 2;
     }
@@ -1005,7 +1007,81 @@ int cmd_remove(const std::string& key) {
   return 0;
 }
 
+std::filesystem::path extract_embedded_zadig() {
+#if !defined(_WIN32) || !defined(NFC_EMBED_ZADIG)
+  return {};
+#else
+  const HRSRC res = ::FindResourceW(nullptr, L"ZADIG", MAKEINTRESOURCEW(10));
+  if (!res) return {};
+  const HGLOBAL glob = ::LoadResource(nullptr, res);
+  if (!glob) return {};
+  const void* data = ::LockResource(glob);
+  const DWORD size = ::SizeofResource(nullptr, res);
+  if (!data || size < 64) return {};
+
+  wchar_t temp[MAX_PATH];
+  const DWORD n = ::GetTempPathW(MAX_PATH, temp);
+  if (n == 0 || n >= MAX_PATH) return {};
+  const std::filesystem::path out = std::filesystem::path(temp) / L"nfc-games-zadig.exe";
+  std::error_code ec;
+  if (std::filesystem::is_regular_file(out, ec) && std::filesystem::file_size(out, ec) == size) {
+    return out;
+  }
+
+  const HANDLE file = ::CreateFileW(out.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS,
+                                     FILE_ATTRIBUTE_NORMAL, nullptr);
+  if (file == INVALID_HANDLE_VALUE) return {};
+  DWORD written = 0;
+  const BOOL ok = ::WriteFile(file, data, size, &written, nullptr);
+  ::CloseHandle(file);
+  if (!ok || written != size) {
+    std::filesystem::remove(out, ec);
+    return {};
+  }
+  return out;
+#endif
+}
+
+std::filesystem::path zadig_exe() {
+  if (const auto embedded = extract_embedded_zadig(); !embedded.empty()) return embedded;
+  std::error_code ec;
+  auto ok = [&](const std::filesystem::path& p) {
+    return std::filesystem::is_regular_file(p, ec);
+  };
+  if (const auto exe = plat::exe_path(); !exe.empty()) {
+    const auto beside = exe.parent_path() / "zadig.exe";
+    if (ok(beside)) return beside;
+  }
+  const auto cwd = std::filesystem::current_path() / "zadig.exe";
+  if (ok(cwd)) return cwd;
+  return {};
+}
+
 int cmd_udev(const std::string& arg) {
+#ifdef _WIN32
+  if (arg == "install" || arg == "installer") {
+    const auto zadig = zadig_exe();
+    if (zadig.empty()) {
+      std::cerr << t("winusb_missing") << "\n";
+      const std::string help = t("winusb_text");
+      std::cout << help;
+      if (help.empty() || help.back() != '\n') std::cout << '\n';
+      return 1;
+    }
+    try {
+      plat::open_uri(zadig.string());
+    } catch (const std::exception& e) {
+      std::cerr << "nfc: " << e.what() << "\n";
+      return 1;
+    }
+    std::cout << t("winusb_started") << zadig.string() << "\n";
+    return 0;
+  }
+  const std::string help = t("winusb_text");
+  std::cout << help;
+  if (help.empty() || help.back() != '\n') std::cout << '\n';
+  return 0;
+#else
   const auto path = udev_file();
   if (path.empty()) {
     std::cerr << t("udev_missing") << "\n";
@@ -1037,37 +1113,23 @@ int cmd_udev(const std::string& arg) {
   std::ifstream in(path);
   std::cout << in.rdbuf();
   return 0;
+#endif
 }
 
 int live_watch_pid() {
   std::ifstream in(watch_pid_path());
   int pid = 0;
-  if (in >> pid && pid > 0 && pid != ::getpid() && ::kill(pid, 0) == 0) return pid;
+  if (in >> pid && pid > 0 && pid != plat::current_pid() && plat::process_alive(pid)) return pid;
   return 0;
 }
 
 namespace {
 
 int run_cmd(std::vector<const char*> argv, bool quiet) {
-  argv.push_back(nullptr);
-  const pid_t pid = ::fork();
-  if (pid < 0) return 127;
-  if (pid == 0) {
-    if (quiet) {
-      const int fd = ::open("/dev/null", O_RDWR);
-      if (fd >= 0) {
-        ::dup2(fd, STDOUT_FILENO);
-        ::dup2(fd, STDERR_FILENO);
-        if (fd > 2) ::close(fd);
-      }
-    }
-    ::execvp(argv[0], const_cast<char**>(argv.data()));
-    ::_exit(127);
-  }
-  int st = 0;
-  if (::waitpid(pid, &st, 0) < 0) return 127;
-  if (WIFEXITED(st)) return WEXITSTATUS(st);
-  return 1;
+  std::vector<std::string> args;
+  args.reserve(argv.size());
+  for (const char* s : argv) args.emplace_back(s);
+  return plat::run_wait(args, quiet);
 }
 
 int systemd_user(const char* action, bool quiet) {
@@ -1088,64 +1150,40 @@ bool systemd_unit_present() {
 int wait_pid_gone(int pid, int ms) {
   using namespace std::chrono_literals;
   for (int waited = 0; waited < ms; waited += 100) {
-    if (::kill(pid, 0) != 0 && errno == ESRCH) return 0;
+    if (!plat::process_alive(pid)) return 0;
     std::this_thread::sleep_for(100ms);
   }
-  return (::kill(pid, 0) == 0) ? 1 : 0;
+  return plat::process_alive(pid) ? 1 : 0;
 }
 
 int stop_watch_pid(int pid) {
   if (pid <= 0) return 0;
-  ::kill(pid, SIGTERM);
+  plat::signal_term(pid);
   if (wait_pid_gone(pid, 4000) == 0) return 0;
-  ::kill(pid, SIGKILL);
+  plat::signal_kill(pid);
   return wait_pid_gone(pid, 1000);
 }
 
 std::filesystem::path watch_binary() {
   std::error_code ec;
+#ifndef _WIN32
   if (const char* app = std::getenv("APPIMAGE"); app && *app) {
     const std::filesystem::path p(app);
-    if (std::filesystem::is_regular_file(p, ec) && ::access(app, X_OK) == 0) return p;
+    if (std::filesystem::is_regular_file(p, ec) && plat::is_executable(p)) return p;
   }
-  char buf[4096];
-  const ssize_t n = ::readlink("/proc/self/exe", buf, sizeof(buf) - 1);
-  if (n > 0) {
-    buf[n] = 0;
-    const std::filesystem::path p(buf);
-    if (std::filesystem::is_regular_file(p, ec) && ::access(buf, X_OK) == 0) return p;
+#endif
+  if (const auto exe = plat::exe_path();
+      !exe.empty() && std::filesystem::is_regular_file(exe, ec) && plat::is_executable(exe)) {
+    return exe;
   }
-  if (const char* home = std::getenv("HOME"); home && *home) {
-    const auto p = std::filesystem::path(home) / "Applications" / "nfc-games-x86_64.AppImage";
-    if (std::filesystem::is_regular_file(p, ec) && ::access(p.c_str(), X_OK) == 0) return p;
-  }
+#ifndef _WIN32
+  const auto bundled = plat::home_dir() / "Applications" / "nfc-games-x86_64.AppImage";
+  if (std::filesystem::is_regular_file(bundled, ec) && plat::is_executable(bundled)) return bundled;
+#endif
   return {};
 }
 
-int spawn_watch() {
-  const auto bin = watch_binary();
-  if (bin.empty()) return 1;
-  const pid_t pid = ::fork();
-  if (pid < 0) return 1;
-  if (pid == 0) {
-    ::setsid();
-    const pid_t grand = ::fork();
-    if (grand < 0) ::_exit(127);
-    if (grand > 0) ::_exit(0);
-    const int fd = ::open("/dev/null", O_RDWR);
-    if (fd >= 0) {
-      ::dup2(fd, STDIN_FILENO);
-      if (fd > 2) ::close(fd);
-    }
-    ::setenv("NFC_SKIP_INSTALL", "1", 1);
-    const auto s = bin.string();
-    ::execl(s.c_str(), s.c_str(), "watch", nullptr);
-    ::_exit(127);
-  }
-  int st = 0;
-  ::waitpid(pid, &st, 0);
-  return 0;
-}
+int spawn_watch() { return plat::spawn_watch(watch_binary()); }
 
 int wait_new_watch_pid(int old, int ms) {
   using namespace std::chrono_literals;
@@ -1363,7 +1401,8 @@ int nfc_run(const std::string& cmd, const std::string& arg) {
   if (cmd == "install" || cmd == "installer") return cmd_udev("install");
 
   const bool uses_reader = cmd == "firmware" || cmd == "led" || cmd == "beep" ||
-                           cmd == "demo" || cmd == "colors" || cmd == "farver";
+                           cmd == "demo" || cmd == "colors" || cmd == "farver" ||
+                           cmd == "reset";
   if (!uses_reader) {
     usage();
     return 2;
@@ -1374,7 +1413,10 @@ int nfc_run(const std::string& cmd, const std::string& arg) {
   }
   UsbPause pause;
   auto reader = open_reader();
-  if (cmd == "firmware") {
+  if (cmd == "reset") {
+    reader.reset_hw();
+    std::cout << "Hardware reset sent\n";
+  } else if (cmd == "firmware") {
     std::cout << reader.firmware() << "\n";
   } else if (cmd == "led") {
     reader.set_led(parse_led(arg));

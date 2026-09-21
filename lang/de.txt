@@ -93,9 +93,32 @@ Mehr
   18  emu ROMs scannen
   0  zurück
 <<<
+menu_more_text_win<<<
+Mehr
+  1  Steam-Spiele anzeigen
+  2  Spiel starten
+  3  Spiel stoppen
+  4  laufendes Spiel anzeigen
+  5  LED und Piep testen
+  6  Lesegerät-Firmware anzeigen
+  7  WinUSB-Treiber (Zadig)
+  8  Tag sichern
+  9  Tag wiederherstellen
+ 10  Hilfe
+ 11  Version
+ 12  Listener neu starten
+  13  in diesem Terminal lauschen
+  14  Spiele scannen (steam/emu/lutris/all)
+  15  Lutris-Spiel installieren
+  16  GOG-Spiele scannen
+  17  GOG-Spiel installieren
+  18  emu ROMs scannen
+  0  zurück
+<<<
 menu_prompt=Nummer: 
 menu_ask_game=Spiel oder appid: 
 menu_ask_action=Shell-Befehl (z. B. 'echo hallo > /tmp/test.txt'; läuft via sh -c beim Auflegen; ' || Aus-Befehl' für das Abnehmen): 
+menu_ask_action_win=Befehl (läuft via cmd /c beim Auflegen; ' || Aus-Befehl' für das Abnehmen): 
 menu_ask_emu=Emulator-Spiel oder Befehl (leer = aus Liste wählen): 
 menu_ask_lutris=Lutris-Spiel oder Slug (leer = aus Liste wählen): 
 menu_ask_lutris_install=Lutris-Spiel zu installieren (Slug oder Name): 
@@ -172,6 +195,26 @@ lang_saved=gespeichert in
 no_reader=Kein ACR122U gefunden (USB 072f:2200). Ist der Leser angeschlossen?
 claim_fail=USB-Interface konnte nicht beansprucht werden: 
 claim_hint= (mit sudo ausführen oder udev-Regel installieren)
+claim_hint_win= (WinUSB-Treiber mit Zadig installieren: nfc udev install)
+open_fail=konnte nicht öffnen 
+winusb_missing=nfc: Zadig ist nicht in dieser nfc.exe enthalten
+winusb_started=Zadig gestartet: 
+winusb_text<<<
+Windows benutzt kein udev. Der ACR122U braucht den WinUSB-Treiber, sonst kann nfc das Lesegerät nicht öffnen.
+
+Zadig steckt in nfc.exe. Ausführen:  nfc udev install
+
+1. nfc udev install ausführen. Zadig wird entpackt und geöffnet. Sonst von https://zadig.akeo.ie/ laden
+2. Lesegerät einstecken. Options → List All Devices
+3. ACR122U oder CCID USB Reader wählen (USB 072f:2200)
+4. Treiber: WinUSB → Replace Driver
+5. USB abziehen und wieder einstecken
+
+Tags liegen in %APPDATA%\nfc-games\tags.conf
+Steam-Spiele starten über steam://. Tag weg stoppt den Spielprozess.
+Emulator- und Aktions-Tags laufen über cmd.exe /c.
+Hooks können %NFC_ID% und %NFC_NAME% lesen.
+<<<
 timeout_tag=Timeout: kein Tag
 ccid_short=CCID-Antwort zu kurz
 ccid_unexpected=Unerwartete CCID-Antwort
